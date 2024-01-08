@@ -1,0 +1,61 @@
+# This file exists so you can easily regenerate your project.
+#
+# `cookiepatcher` is a convenient shim around `cookiecutter`
+# for regenerating projects (it will generate a .cookiecutterrc
+# automatically for any template). To use it:
+#
+#    pip install cookiepatcher
+#    cookiepatcher gh:ionelmc/cookiecutter-pylibrary python-maskpy
+#
+# See:
+#    https://pypi.org/project/cookiepatcher
+#
+# Alternatively, you can run:
+#
+#    cookiecutter --overwrite-if-exists --config-file=python-maskpy/.cookiecutterrc gh:ionelmc/cookiecutter-pylibrary
+
+default_context:
+    allow_tests_inside_package: "no"
+    c_extension_function: "longest"
+    c_extension_module: "_maskpy"
+    c_extension_optional: "no"
+    c_extension_support: "no"
+    codacy: "no"
+    codacy_projectid: "[Get ID from https://app.codacy.com/gh/Alan-Manning/python-maskpy/settings]"
+    codeclimate: "no"
+    codecov: "yes"
+    command_line_interface: "click"
+    command_line_interface_bin_name: "maskpy"
+    coveralls: "no"
+    distribution_name: "maskpy"
+    email: "Alan_Manning@Live.co.uk"
+    formatter_quote_style: "double"
+    full_name: "Alan Manning"
+    github_actions: "yes"
+    github_actions_osx: "no"
+    github_actions_windows: "yes"
+    license: "GNU Lesser General Public License v3 or later (LGPLv3+)"
+    package_name: "maskpy"
+    pre_commit: "yes"
+    project_name: "Maskpy"
+    project_short_description: "package for creating gds maks in python"
+    pypi_badge: "yes"
+    pypi_disable_upload: "no"
+    release_date: "today"
+    repo_hosting: "github.com"
+    repo_hosting_domain: "github.com"
+    repo_main_branch: "main"
+    repo_name: "python-maskpy"
+    repo_username: "Alan-Manning"
+    scrutinizer: "no"
+    setup_py_uses_setuptools_scm: "no"
+    sphinx_docs: "yes"
+    sphinx_docs_hosting: "https://python-maskpy.readthedocs.io/"
+    sphinx_doctest: "no"
+    sphinx_theme: "sphinx-rtd-theme"
+    test_matrix_separate_coverage: "no"
+    version: "0.0.0"
+    version_manager: "bump2version"
+    website: "https://github.com/Alan-Manning"
+    year_from: "2024"
+    year_to: "2024"
