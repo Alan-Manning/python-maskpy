@@ -8,6 +8,7 @@ import concurrent.futures
 import copy
 import os
 import time
+import datetime
 import xml.etree.ElementTree as ET
 
 import gdspy
@@ -904,6 +905,10 @@ class SOUK_Functions:
         cardiff_logo=True,
         top_right_label_window=True,
         return_outer_poly_points=False,
+        add_center_pin_cutout=True,
+        add_slotted_pin_cutout=True,
+        dice_line_tab_positions=["left"],
+        add_groundplane_under_test_chip=True,
     ):
         """
         Make the boundary for a test chip quad. Adds a centered pin hole and
@@ -953,6 +958,18 @@ class SOUK_Functions:
             Default False. If true this will return the outer polygon points
             around the test chip quadrent with extra exclusion.
 
+        add_center_pin_cutout: Boolean
+            Default True. If false the center pin hole for the test chip will
+            not be added to the mask.
+
+        add_slotted_pin_cutout: Boolean
+            Default True. If false the slotted pin hole for the test chip will
+            not be added to the mask.
+
+        add_groundplane_under_test_chip: Boolean
+            Default True. If false no groundplane will be added below the test
+            chip boundary.
+
         Returns
         -------
         horn_centers : list
@@ -987,6 +1004,14 @@ class SOUK_Functions:
         bottom_left_chip_corner = [quadrent_center_xy[0] - (test_chip_quad_width / 2), quadrent_center_xy[1] - (test_chip_quad_height / 2)]
 
         bottom_right_chip_corner = [quadrent_center_xy[0] + (test_chip_quad_width / 2), quadrent_center_xy[1] - (test_chip_quad_height / 2)]
+
+        if add_groundplane_under_test_chip:
+            groundplane_rect = gdspy.Rectangle(
+                top_right_chip_corner,
+                bottom_left_chip_corner,
+                **self.Nb_Groundplane,
+            )
+            self.ground_plane_positives.add(groundplane_rect)
 
         # Adding the bottom_left_text if True
         if bottom_left_text != "":
@@ -1066,7 +1091,12 @@ class SOUK_Functions:
             self.add_cardiff_logo(logo_xy, cardiff_logo_size)
 
         # Adding the dicing line in the groundplane and the tabbed dicing line
-        self.add_test_chip_quad_tabbed_dicing_line(quadrent_center_xy, test_chip_quad_width, test_chip_quad_height)
+        self.add_test_chip_quad_tabbed_dicing_line(
+            quadrent_center_xy,
+            test_chip_quad_width,
+            test_chip_quad_height,
+            tab_positions=dice_line_tab_positions,
+        )
 
         groundplane_edge_cuts_top_mid_gap = config["groundplane_edge_cuts_top_mid_gap"]  # 5500
         groundplane_edge_cuts_bot_mid_gap = config["groundplane_edge_cuts_bot_mid_gap"]  # 5500
@@ -1098,9 +1128,11 @@ class SOUK_Functions:
             quadrent_center_xy[1] + slotted_pin_offset_y_from_center_pin,
         ]
 
-        _ = self.add_center_pin_and_get_bounding_points(quadrent_center_xy, center_pin_radius)
+        if add_center_pin_cutout:
+            _ = self.add_center_pin_and_get_bounding_points(quadrent_center_xy, center_pin_radius)
 
-        _ = self.add_slotted_pin_and_get_bounding_points(slotted_pin_xy, slotted_pin_length, slotted_pin_radius, center_pin_xy)
+        if add_slotted_pin_cutout:
+            _ = self.add_slotted_pin_and_get_bounding_points(slotted_pin_xy, slotted_pin_length, slotted_pin_radius, center_pin_xy)
 
         horn_centers = [
             [quadrent_center_xy[0] - horn_offset_from_center_x, quadrent_center_xy[1] + horn_offset_from_center_y],
@@ -1670,6 +1702,10 @@ class SOUK_Functions:
         # working_sin_dep_cutout = main_square
         self.silicon_nitride_positives.add(
             gdspy.Rectangle([x - box_w_h / 2, y - box_w_h / 2], [x + box_w_h / 2, y + box_w_h / 2], **self.SiN_dep)
+        )
+
+        self.ground_plane_positives.add(
+            gdspy.Rectangle([x - box_w_h / 2, y - box_w_h / 2], [x + box_w_h / 2, y + box_w_h / 2], **self.Nb_Groundplane)
         )
 
         outer_square_side_length = box_w_h
@@ -2341,13 +2377,14 @@ class SOUK_Functions:
         return
 
     def add_test_chip_quad_tabbed_dicing_line(
-        self, test_chip_quad_center_xy, test_chip_quad_width, test_chip_quad_height, tab_position="left", corner_overrun_length=200
+        self, test_chip_quad_center_xy, test_chip_quad_width, test_chip_quad_height, tab_positions="left", corner_overrun_length=200
     ):
         """
-        Adds a tabbed dicing line around the test chip quad. This is a solid
-        dicing line of three edges and a tabbed edge on the other. This tab
-        position is by default on the left side but can be any edge. The dice
-        lines by default overextend by 200um but this can be changed.
+        Adds a tabbed dicing line around the test chip quad. This is a tabbed
+        dicing line on all tab_positions specified otherwise will be a solid
+        dicing line. The tab positions is by default only the left side but
+        can be any edge. There are corner markers by default that overextend
+        by 200um but is variable.
 
         Parameters
         ----------
@@ -2363,10 +2400,11 @@ class SOUK_Functions:
 
         KwArgs
         ------
-        tab_position : str
-            The edge to position the tabbed edge of the dicing line on.
-            The default is "left" but can take str values "top", "left", "bot",
-            or "right".
+        tab_positions : list
+            The edge positions that the dicing line should be tabbed. Any edges
+            not specified will be solid dicing lines. This should be a list of
+            strings. The default is a list of just ["left"], but can take str
+            values "top", "left", "bot", "right", or "all".
 
         corner_overrun_length : int, float
             This is the length the corners of the tabbed dicing line should
@@ -2378,13 +2416,6 @@ class SOUK_Functions:
         tab_gap_length = 300  # config
         linewidth = 300  # config
 
-        tab_rot_dict = {"top": (-pi / 2), "left": 0, "bot": (pi / 2), "right": pi}
-
-        if tab_position in tab_rot_dict.keys():
-            rotation = tab_rot_dict[tab_position]
-        else:
-            raise ValueError("tab_position arg should be a str that takes the value of 'right' 'left' 'top' or 'bot'")
-
         center_x = test_chip_quad_center_xy[0]
         center_y = test_chip_quad_center_xy[1]
 
@@ -2393,115 +2424,262 @@ class SOUK_Functions:
         bot_left_corner = [center_x - test_chip_quad_width / 2, center_y - test_chip_quad_height / 2]
         bot_right_corner = [center_x + test_chip_quad_width / 2, center_y - test_chip_quad_height / 2]
 
-        right_rect = gdspy.Rectangle(
-            [bot_right_corner[0], bot_right_corner[1] - linewidth - corner_overrun_length],
-            [top_right_corner[0] + linewidth, top_right_corner[1] + linewidth + corner_overrun_length],
-            **self.Tab_dicing_line,
-        )
-        right_rect.rotate(rotation, [center_x, center_y])
-        self.Main.add(right_rect)
-
-        top_rect = gdspy.Rectangle(
+        top_left_corner_poly_points = [
+            top_left_corner,
             [top_left_corner[0] - linewidth - corner_overrun_length, top_left_corner[1]],
+            [top_left_corner[0] - linewidth - corner_overrun_length, top_left_corner[1] + linewidth],
+            [top_left_corner[0] - linewidth, top_left_corner[1] + linewidth],
+            [top_left_corner[0] - linewidth, top_left_corner[1] + linewidth + corner_overrun_length],
+            [top_left_corner[0], top_left_corner[1] + linewidth + corner_overrun_length],
+        ]
+        top_left_corner_poly = gdspy.Polygon(top_left_corner_poly_points, **self.Tab_dicing_line)
+        self.Main.add(top_left_corner_poly)
+
+        top_right_corner_poly_points = [
+            top_right_corner,
+            [top_right_corner[0] + linewidth + corner_overrun_length, top_right_corner[1]],
             [top_right_corner[0] + linewidth + corner_overrun_length, top_right_corner[1] + linewidth],
-            **self.Tab_dicing_line,
-        )
-        top_rect.rotate(rotation, [center_x, center_y])
-        self.Main.add(top_rect)
+            [top_right_corner[0] + linewidth, top_right_corner[1] + linewidth],
+            [top_right_corner[0] + linewidth, top_right_corner[1] + linewidth + corner_overrun_length],
+            [top_right_corner[0], top_right_corner[1] + linewidth + corner_overrun_length],
+        ]
+        top_right_corner_poly = gdspy.Polygon(top_right_corner_poly_points, **self.Tab_dicing_line)
+        self.Main.add(top_right_corner_poly)
 
-        bot_rect = gdspy.Rectangle(
+        bot_left_corner_poly_points = [
+            bot_left_corner,
+            [bot_left_corner[0] - linewidth - corner_overrun_length, bot_left_corner[1]],
             [bot_left_corner[0] - linewidth - corner_overrun_length, bot_left_corner[1] - linewidth],
+            [bot_left_corner[0] - linewidth, bot_left_corner[1] - linewidth],
+            [bot_left_corner[0] - linewidth, bot_left_corner[1] - linewidth - corner_overrun_length],
+            [bot_left_corner[0], bot_left_corner[1] - linewidth - corner_overrun_length],
+        ]
+        bot_left_corner_poly = gdspy.Polygon(bot_left_corner_poly_points, **self.Tab_dicing_line)
+        self.Main.add(bot_left_corner_poly)
+
+        bot_right_corner_poly_points = [
+            bot_right_corner,
             [bot_right_corner[0] + linewidth + corner_overrun_length, bot_right_corner[1]],
-            **self.Tab_dicing_line,
-        )
-        bot_rect.rotate(rotation, [center_x, center_y])
-        self.Main.add(bot_rect)
+            [bot_right_corner[0] + linewidth + corner_overrun_length, bot_right_corner[1] - linewidth],
+            [bot_right_corner[0] + linewidth, bot_right_corner[1] - linewidth],
+            [bot_right_corner[0] + linewidth, bot_right_corner[1] - linewidth - corner_overrun_length],
+            [bot_right_corner[0], bot_right_corner[1] - linewidth - corner_overrun_length],
+        ]
+        bot_right_corner_poly = gdspy.Polygon(bot_right_corner_poly_points, **self.Tab_dicing_line)
+        self.Main.add(bot_right_corner_poly)
 
-        middle_left_center = [center_x - test_chip_quad_width / 2 - linewidth / 2, center_y]
+        top_center = [center_x, center_y + test_chip_quad_height / 2]
+        right_center = [center_x + test_chip_quad_width / 2, center_y]
+        bot_center = [center_x, center_y - test_chip_quad_height / 2]
+        left_center = [center_x - test_chip_quad_width / 2, center_y]
 
-        path_middle = gdspy.FlexPath(
-            [
-                [middle_left_center[0], middle_left_center[1] - tab_length / 2],
-                [middle_left_center[0], middle_left_center[1] + tab_length / 2],
-            ],
-            linewidth,
-            ends="round",
-            **self.Tab_dicing_line,
-        )
-        path_middle.rotate(rotation, [center_x, center_y])
-        self.Main.add(path_middle)
+        sides = ["top", "right", "bot", "left"]
+        side_centers = [top_center, right_center, bot_center, left_center]
 
-        for i in range(int(np.round((test_chip_quad_height / 2) / (tab_length + tab_gap_length + linewidth), 0)) + 1):
-            if (tab_length / 2 + i * (tab_length + 2 * tab_gap_length)) > test_chip_quad_height / 2:
-                edge_tab = gdspy.FlexPath(
+        side_lengths = [test_chip_quad_width, test_chip_quad_height, test_chip_quad_width, test_chip_quad_height]
+        side_rotations = [0, (3 / 2) * pi, pi, (1 / 2) * pi]
+
+        # Drawing the tabbed lines, center line, then all the ones out from that.
+        for side, side_center, side_length, side_rotation in zip(sides, side_centers, side_lengths, side_rotations):
+            half_length_of_side = side_length / 2
+
+            # If this side is not in the tab_positions list then just draw a solid dice line and move to next side
+            if side not in tab_positions and tab_positions != ["all"]:
+                solid_dice_line = gdspy.FlexPath(
                     [
-                        [middle_left_center[0], middle_left_center[1] - tab_length / 2 + i * (tab_length + 2 * tab_gap_length)],
-                        [middle_left_center[0], top_left_corner[1] + linewidth + corner_overrun_length],
+                        [side_center[0] - half_length_of_side, side_center[1] + (linewidth / 2)],
+                        [side_center[0] + half_length_of_side, side_center[1] + (linewidth / 2)],
                     ],
                     linewidth,
+                    ends="flush",
                     **self.Tab_dicing_line,
                 )
-                edge_tab.rotate(rotation, [center_x, center_y])
-                self.Main.add(edge_tab)
+                solid_dice_line.rotate(side_rotation, center=side_center)
+                self.Main.add(solid_dice_line)
 
-                cap = gdspy.Round(
-                    [middle_left_center[0], middle_left_center[1] - tab_length / 2 + i * (tab_length + 2 * tab_gap_length)],
-                    linewidth / 2,
-                    initial_angle=0,
-                    final_angle=-pi,
-                    **self.Tab_dicing_line,
-                )
-                cap.rotate(rotation, [center_x, center_y])
-                self.Main.add(cap)
+                continue
 
-                edge_tab = gdspy.FlexPath(
-                    [
-                        [middle_left_center[0], bot_left_corner[1] - linewidth - corner_overrun_length],
-                        [middle_left_center[0], middle_left_center[1] + tab_length / 2 + -i * (tab_length + 2 * tab_gap_length)],
-                    ],
-                    linewidth,
-                    **self.Tab_dicing_line,
-                )
-                edge_tab.rotate(rotation, [center_x, center_y])
-                self.Main.add(edge_tab)
+            len_of_first_half_mid_tab_and_post_gap = (tab_length / 2) + (linewidth / 2) + tab_gap_length
+            len_of_full_tab_and_post_gap = (linewidth / 2) + tab_length + (linewidth / 2) + tab_gap_length
+            no_of_tabs_after_middle = int((half_length_of_side - len_of_first_half_mid_tab_and_post_gap) / (len_of_full_tab_and_post_gap))
 
-                cap = gdspy.Round(
-                    [middle_left_center[0], middle_left_center[1] + tab_length / 2 + -i * (tab_length + 2 * tab_gap_length)],
-                    linewidth / 2,
-                    initial_angle=0,
-                    final_angle=pi,
-                    **self.Tab_dicing_line,
-                )
-                cap.rotate(rotation, [center_x, center_y])
-                self.Main.add(cap)
-
-                break
-
-            edge_tab = gdspy.FlexPath(
+            center_tab = gdspy.FlexPath(
                 [
-                    [middle_left_center[0], middle_left_center[1] - tab_length / 2 + i * (tab_length + 2 * tab_gap_length)],
-                    [middle_left_center[0], middle_left_center[1] + tab_length / 2 + i * (tab_length + 2 * tab_gap_length)],
+                    [side_center[0] - (tab_length / 2), side_center[1] + (linewidth / 2)],
+                    [side_center[0] + (tab_length / 2), side_center[1] + (linewidth / 2)],
                 ],
                 linewidth,
                 ends="round",
                 **self.Tab_dicing_line,
             )
-            edge_tab.rotate(rotation, [center_x, center_y])
-            self.Main.add(edge_tab)
+            center_tab.rotate(side_rotation, center=side_center)
+            self.Main.add(center_tab)
 
-            edge_tab = gdspy.FlexPath(
+            init_offset = len_of_first_half_mid_tab_and_post_gap + (linewidth / 2) + (tab_length / 2)
+
+            # Loop for all the full tabs out from the center
+            for i in range(no_of_tabs_after_middle):
+                offset = init_offset + i * len_of_full_tab_and_post_gap
+                left_side_tab = gdspy.FlexPath(
+                    [
+                        [side_center[0] - offset - (tab_length / 2), side_center[1] + (linewidth / 2)],
+                        [side_center[0] - offset + (tab_length / 2), side_center[1] + (linewidth / 2)],
+                    ],
+                    linewidth,
+                    ends="round",
+                    **self.Tab_dicing_line,
+                )
+                left_side_tab.rotate(side_rotation, center=side_center)
+                self.Main.add(left_side_tab)
+
+                right_side_tab = gdspy.FlexPath(
+                    [
+                        [side_center[0] + offset - (tab_length / 2), side_center[1] + (linewidth / 2)],
+                        [side_center[0] + offset + (tab_length / 2), side_center[1] + (linewidth / 2)],
+                    ],
+                    linewidth,
+                    ends="round",
+                    **self.Tab_dicing_line,
+                )
+                right_side_tab.rotate(side_rotation, center=side_center)
+                self.Main.add(right_side_tab)
+
+            # the finishing tabs to the corner that arent full length
+            offset += len_of_full_tab_and_post_gap
+            left_finishing_tab = gdspy.FlexPath(
                 [
-                    [middle_left_center[0], middle_left_center[1] - tab_length / 2 + -i * (tab_length + 2 * tab_gap_length)],
-                    [middle_left_center[0], middle_left_center[1] + tab_length / 2 + -i * (tab_length + 2 * tab_gap_length)],
+                    [side_center[0] - half_length_of_side, side_center[1] + (linewidth / 2)],
+                    [side_center[0] - offset + (tab_length / 2), side_center[1] + (linewidth / 2)],
                 ],
                 linewidth,
                 ends="round",
                 **self.Tab_dicing_line,
             )
-            edge_tab.rotate(rotation, [center_x, center_y])
-            self.Main.add(edge_tab)
+            left_finishing_tab.rotate(side_rotation, center=side_center)
+            self.Main.add(left_finishing_tab)
+
+            right_finishing_tab = gdspy.FlexPath(
+                [
+                    [side_center[0] + half_length_of_side, side_center[1] + (linewidth / 2)],
+                    [side_center[0] + offset - (tab_length / 2), side_center[1] + (linewidth / 2)],
+                ],
+                linewidth,
+                ends="round",
+                **self.Tab_dicing_line,
+            )
+            right_finishing_tab.rotate(side_rotation, center=side_center)
+            self.Main.add(right_finishing_tab)
 
         return
+        # right_rect = gdspy.Rectangle(
+        #     [bot_right_corner[0], bot_right_corner[1] - linewidth - corner_overrun_length],
+        #     [top_right_corner[0] + linewidth, top_right_corner[1] + linewidth + corner_overrun_length],
+        #     **self.Tab_dicing_line,
+        # )
+        # right_rect.rotate(rotation, [center_x, center_y])
+        # self.Main.add(right_rect)
+
+        # top_rect = gdspy.Rectangle(
+        #     [top_left_corner[0] - linewidth - corner_overrun_length, top_left_corner[1]],
+        #     [top_right_corner[0] + linewidth + corner_overrun_length, top_right_corner[1] + linewidth],
+        #     **self.Tab_dicing_line,
+        # )
+        # top_rect.rotate(rotation, [center_x, center_y])
+        # self.Main.add(top_rect)
+        #
+        # bot_rect = gdspy.Rectangle(
+        #     [bot_left_corner[0] - linewidth - corner_overrun_length, bot_left_corner[1] - linewidth],
+        #     [bot_right_corner[0] + linewidth + corner_overrun_length, bot_right_corner[1]],
+        #     **self.Tab_dicing_line,
+        # )
+        # bot_rect.rotate(rotation, [center_x, center_y])
+        # self.Main.add(bot_rect)
+        #
+        # middle_left_center = [center_x - test_chip_quad_width / 2 - linewidth / 2, center_y]
+        #
+        # path_middle = gdspy.FlexPath(
+        #     [
+        #         [middle_left_center[0], middle_left_center[1] - tab_length / 2],
+        #         [middle_left_center[0], middle_left_center[1] + tab_length / 2],
+        #     ],
+        #     linewidth,
+        #     ends="round",
+        #     **self.Tab_dicing_line,
+        # )
+        # path_middle.rotate(rotation, [center_x, center_y])
+        # self.Main.add(path_middle)
+        #
+        # for i in range(int(np.round((test_chip_quad_height / 2) / (tab_length + tab_gap_length + linewidth), 0)) + 1):
+        #     if (tab_length / 2 + i * (tab_length + 2 * tab_gap_length)) > test_chip_quad_height / 2:
+        #         edge_tab = gdspy.FlexPath(
+        #             [
+        #                 [middle_left_center[0], middle_left_center[1] - tab_length / 2 + i * (tab_length + 2 * tab_gap_length)],
+        #                 [middle_left_center[0], top_left_corner[1] + linewidth + corner_overrun_length],
+        #             ],
+        #             linewidth,
+        #             **self.Tab_dicing_line,
+        #         )
+        #         edge_tab.rotate(rotation, [center_x, center_y])
+        #         self.Main.add(edge_tab)
+        #
+        #         cap = gdspy.Round(
+        #             [middle_left_center[0], middle_left_center[1] - tab_length / 2 + i * (tab_length + 2 * tab_gap_length)],
+        #             linewidth / 2,
+        #             initial_angle=0,
+        #             final_angle=-pi,
+        #             **self.Tab_dicing_line,
+        #         )
+        #         cap.rotate(rotation, [center_x, center_y])
+        #         self.Main.add(cap)
+        #
+        #         edge_tab = gdspy.FlexPath(
+        #             [
+        #                 [middle_left_center[0], bot_left_corner[1] - linewidth - corner_overrun_length],
+        #                 [middle_left_center[0], middle_left_center[1] + tab_length / 2 + -i * (tab_length + 2 * tab_gap_length)],
+        #             ],
+        #             linewidth,
+        #             **self.Tab_dicing_line,
+        #         )
+        #         edge_tab.rotate(rotation, [center_x, center_y])
+        #         self.Main.add(edge_tab)
+        #
+        #         cap = gdspy.Round(
+        #             [middle_left_center[0], middle_left_center[1] + tab_length / 2 + -i * (tab_length + 2 * tab_gap_length)],
+        #             linewidth / 2,
+        #             initial_angle=0,
+        #             final_angle=pi,
+        #             **self.Tab_dicing_line,
+        #         )
+        #         cap.rotate(rotation, [center_x, center_y])
+        #         self.Main.add(cap)
+        #
+        #         break
+        #
+        #     edge_tab = gdspy.FlexPath(
+        #         [
+        #             [middle_left_center[0], middle_left_center[1] - tab_length / 2 + i * (tab_length + 2 * tab_gap_length)],
+        #             [middle_left_center[0], middle_left_center[1] + tab_length / 2 + i * (tab_length + 2 * tab_gap_length)],
+        #         ],
+        #         linewidth,
+        #         ends="round",
+        #         **self.Tab_dicing_line,
+        #     )
+        #     edge_tab.rotate(rotation, [center_x, center_y])
+        #     self.Main.add(edge_tab)
+        #
+        #     edge_tab = gdspy.FlexPath(
+        #         [
+        #             [middle_left_center[0], middle_left_center[1] - tab_length / 2 + -i * (tab_length + 2 * tab_gap_length)],
+        #             [middle_left_center[0], middle_left_center[1] + tab_length / 2 + -i * (tab_length + 2 * tab_gap_length)],
+        #         ],
+        #         linewidth,
+        #         ends="round",
+        #         **self.Tab_dicing_line,
+        #     )
+        #     edge_tab.rotate(rotation, [center_x, center_y])
+        #     self.Main.add(edge_tab)
+        #
+        # return
 
     def add_text_under_horn_in_test_chip_quad(self, text_string, horn_center_x, horn_center_y):
         """
@@ -2566,8 +2744,9 @@ class SOUK_Functions:
         except FileNotFoundError:
             print("Config file '" + path + file_name + "' not found.")
             return
-        except Exception:
+        except Exception as e:
             print("Issue with file " + path + file_name + ".")
+            print(e)
             return
 
         config_dict = {}
@@ -5142,7 +5321,7 @@ class SOUK_Functions:
                             y + outer_arc_conection_radius * sin(-pi / 4),
                         ]
 
-                        # add path conecting left mid inner to outer
+                        # add path conecting right mid inner to outer
                         inner_conect_ang = (pi / 2) + inner_ring_overlap_theta
                         outer_conect_ang = (pi / 2) + outer_ring_overlap_theta - outer_ring_arc_angle
                         extra_length_connect_path = 100
@@ -5158,6 +5337,7 @@ class SOUK_Functions:
                             ],
                             [x + outer_ring_radius * cos(outer_conect_ang), y + outer_ring_radius * sin(outer_conect_ang)],
                         ]
+
                         inner_to_outer_connect_path = gdspy.FlexPath(
                             inner_to_outer_connect_path_points,
                             inner_ring_line_width,
@@ -5978,7 +6158,16 @@ class SOUK_Functions:
 
         return
 
-    def connect_ants_to_KIDs(self, x, y, relative_antena_conect_positions, relative_kid_positions, antena_rot, Main_config_file_dict):
+    def connect_ants_to_KIDs(
+        self,
+        x,
+        y,
+        relative_antena_conect_positions,
+        relative_kid_positions,
+        antena_rot,
+        Main_config_file_dict,
+        add_dielectric_under_conections=True,
+    ):
         """
         Adds a co-planar waveguide feedline that transitons to a microstrip that
         connects the antenna pads to the meanders of the KIDs. The co-planar
@@ -6011,6 +6200,11 @@ class SOUK_Functions:
             dictionary containing individual dictionarys of config settings.
             Requires "antenna_cpw_microstrip_trans" AND "filter_bank" AND "antenna".
 
+        KwArgs
+        ------
+        add_dielectric_under_conections = True
+            Adds dielectric under the connection from the antenna to the KID
+            meander.
         """
 
         config = Main_config_file_dict["antenna_cpw_microstrip_trans"]
@@ -6151,6 +6345,19 @@ class SOUK_Functions:
             )
             cpw_transition_center = gdspy.Polygon(points, **self.Nb_Antenna)
             self.Main.add(cpw_transition_center)
+
+            if add_dielectric_under_conections:
+                dielectric_path_points = [ANT, extended_ANT, extended_KID, KID]
+                dielectric_under_connection_width = 5 * CPW_width
+                dielectric_under_connection_path = gdspy.FlexPath(
+                    dielectric_path_points,
+                    dielectric_under_connection_width,
+                    corners="circular bend",
+                    bend_radius=flex_path_bend_radius,
+                    **self.SiN_dep,
+                )
+                # self.silicon_nitride_positives.add(dielectric_under_connection_path)
+                self.Main.add(dielectric_under_connection_path)
 
         return
 
@@ -6467,7 +6674,8 @@ class SOUK_Functions:
         center_material="Nb",
         add_bridges=False,
         cutout_dilectric_around_end_distance=0,
-        cutout_center_around_end_distance=0,
+        cutout_groundplane_around_end_distance=0,
+        cutout_center_around_end_distance=0.5,
         return_outer_poly_points=False,
     ):
         """
@@ -6518,6 +6726,12 @@ class SOUK_Functions:
         cutout_center_around_end_distance = 0
             If not zero this will create a gap between the edge of the mask and
             center line of the feedline of the length specified.
+
+        cutout_groundplane_around_end_distance = 0.5
+            If not zero this will create a ground plane cutout at the end of
+            the feedline that overextends the end of the feedline. The length
+            of that overextention in the groundplane cutout will be this given
+            value multiplied by the cutout_around_feedline_width.
 
         return_outer_poly_points = False
             Will return the outer polygon points if set to true.
@@ -6619,12 +6833,16 @@ class SOUK_Functions:
                 self.Main.add(new_center_line)
 
         angle_of_last_section = np.arctan2((feed_points[-2][1] - feed_points[-1][1]), (feed_points[-2][0] - feed_points[-1][0]))
-        ground_plane_cuttout_outer_path_points = feed_points + [
-            [
-                feed_points[-1][0] + 0.5 * cutout_around_feedline_width * cos(angle_of_last_section + pi),
-                feed_points[-1][1] + 0.5 * cutout_around_feedline_width * sin(angle_of_last_section + pi),
+
+        if cutout_groundplane_around_end_distance == 0:
+            ground_plane_cuttout_outer_path_points = feed_points
+        else:
+            ground_plane_cuttout_outer_path_points = feed_points + [
+                [
+                    feed_points[-1][0] + 0.5 * cutout_around_feedline_width * cos(angle_of_last_section + pi),
+                    feed_points[-1][1] + 0.5 * cutout_around_feedline_width * sin(angle_of_last_section + pi),
+                ]
             ]
-        ]
         ground_plane_cuttout_outer_path = gdspy.FlexPath(
             ground_plane_cuttout_outer_path_points,
             cutout_around_feedline_width,
@@ -8738,9 +8956,10 @@ class SOUK_Functions:
         )
         self.Main.add(groundplane)  # then adds this groundplane geometry to the main cell
 
-        print("    Ground Plane boolean operation DONE\n")
+        print("    Ground Plane boolean operation DONE")
         end_time = time.time()
-        print("    time taken to do ground = " + str(end_time - start_time) + "\n\n\n")
+        time_taken = np.round(end_time - start_time, 2)
+        print(f"    time taken to do ground = {time_taken}\n")
         return
 
     def boolean_SiN(self):
@@ -8755,9 +8974,10 @@ class SOUK_Functions:
 
         if self.silicon_nitride_positives.get_polygons([3, 0]) != []:
             self.Main.add(dielectric_layer)  # then adds this dielectric geometry to the main cell
-        print("    dielectirc layer boolean operation DONE\n")
+        print("    dielectirc layer boolean operation DONE")
         end_time = time.time()
-        print("    time taken to do sin_dep = " + str(end_time - start_time) + "\n\n\n")
+        time_taken = np.round(end_time - start_time, 2)
+        print(f"    time taken to do sin_dep = {time_taken}\n")
 
         return
 
@@ -8772,9 +8992,10 @@ class SOUK_Functions:
         )  # note the positives need to be a polygon set so you get polygons with tupple (3,0) which is layer 3 datatype 0 i.e. the SiN layer
 
         self.Main.add(SiO_layer)  # then adds this dielectric geometry to the main cell
-        print("    Silicon DiOxide layer boolean operation DONE\n")
+        print("    Silicon DiOxide layer boolean operation DONE")
         end_time = time.time()
-        print("    time taken to do SiO = " + str(end_time - start_time) + "\n\n\n")
+        time_taken = np.round(end_time - start_time, 2)
+        print(f"    time taken to do SiO = {time_taken}\n")
         return
 
     def boolean_SiN_mem(self):
@@ -8788,9 +9009,10 @@ class SOUK_Functions:
         )  # note the positives need to be a polygon set so you get polygons with tupple (3,0) which is layer 3 datatype 0 i.e. the SiN layer
 
         self.Main.add(SiN_membrane_layer)  # then adds this dielectric geometry to the main cell
-        print("    Silicon Nitride membrane layer boolean operation DONE\n")
+        print("    Silicon Nitride membrane layer boolean operation DONE")
         end_time = time.time()
-        print("    time taken to do SiN mem = " + str(end_time - start_time) + "\n\n\n")
+        time_taken = np.round(end_time - start_time, 2)
+        print(f"    time taken to do SiN mem = {time_taken}\n")
 
     def do_boolean_operations(self):
         """
@@ -8803,7 +9025,7 @@ class SOUK_Functions:
         # TODO Make an alive loop for each of the steps in this process.
         # time is roughly proportioanl to number of polygons in the positives and cutouts combined.
 
-        print("Doing the boolean operations to the mask.\n")
+        print("Doing the boolean operations to the mask.")
         very_first_time = time.time()
 
         # Groundplane
@@ -8846,132 +9068,39 @@ class SOUK_Functions:
 
         SiN_mem_expected_time = combined_number_of_SiN_mem_positives_cutouts * 1.92823e-05
 
-        longest_expected_time = max([ground_plane_expected_time, SiN_mem_expected_time, SiO_expected_time, SiN_mem_expected_time])
+        # longest_expected_time = max([ground_plane_expected_time, SiN_mem_expected_time, SiO_expected_time, SiN_mem_expected_time])
+        # expected_end = datetime.datetime.fromtimestamp( very_first_time + int(longest_expected_time))
+        # print(f"    Expected time - {np.round(longest_expected_time, 2)} secs")
+        # print(f"    Expected end  - {expected_end.hour}:{expected_end.minute}\n")
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            bool_ground_done = executor.submit(
-                self.boolean_ground_plane
-            )  # , desc="Ground Plane Boolean Operation", total=ground_plane_expected_time
-            bool_SiN_done = executor.submit(self.boolean_SiN)  # , desc="Silicon Nitride Boolean Operation", total=SiN_expected_time
-            bool_SiO_done = executor.submit(self.boolean_SiO)  # , desc="Silicon DiOxide Boolean Operation", total=SiO_expected_time
-            Boolean_SiN_mem_done = executor.submit(
-                self.boolean_SiN_mem
-            )  # , desc="Silicon Nitride membrane Boolean Operation", total=SiN_mem_expected_time
+        sequential_time = ground_plane_expected_time + SiN_mem_expected_time + SiO_expected_time + SiN_mem_expected_time
+        expected_end = datetime.datetime.fromtimestamp(very_first_time + int(sequential_time))
+        print(f"    Expected time - {np.round(sequential_time, 2)} secs")
+        print(f"    Expected end  - {expected_end.hour}:{str(expected_end.minute).zfill(2)}\n")
 
-            # executor.submit(self.expected_time_progress_bar, longest_expected_time, "Boolean Operations")
-            # executor.submit(self.expected_time_progress_bar, ground_plane_expected_time, "Ground Plane Boolean Operation")
-            # executor.submit(self.expected_time_progress_bar, SiN_expected_time, "Silicon Nitride Boolean Operation")
-            # executor.submit(self.expected_time_progress_bar, SiO_expected_time, "Silicon DiOxide Boolean Operation")
-            # executor.submit(self.expected_time_progress_bar, SiN_mem_expected_time, "Silicon Nitride membrane Boolean Operation")
+        print(f"    SiO ~ {np.round(SiO_expected_time, 2)} secs")
+        self.boolean_SiO()
 
-        # with concurrent.futures.ProcessPoolExecutor() as executor:
-        #     bool_ground_done = executor.submit(self.boolean_ground_plane) #, desc="Ground Plane Boolean Operation", total=ground_plane_expected_time
-        #     bool_SiN_done = executor.submit(self.boolean_SiN) #, desc="Silicon Nitride Boolean Operation", total=SiN_expected_time
-        #     bool_SiO_done = executor.submit(self.boolean_SiO) #, desc="Silicon DiOxide Boolean Operation", total=SiO_expected_time
-        #     Boolean_SiN_mem_done = executor.submit(self.boolean_SiN_mem) #, desc="Silicon Nitride membrane Boolean Operation", total=SiN_mem_expected_time
-        #
-        #     executor.submit(self.expected_time_progress_bar, ground_plane_expected_time, "Ground Plane Boolean Operation")
-        #     executor.submit(self.expected_time_progress_bar, SiN_expected_time, "Silicon Nitride Boolean Operation")
-        #     executor.submit(self.expected_time_progress_bar, SiO_expected_time, "Silicon DiOxide Boolean Operation")
-        #     executor.submit(self.expected_time_progress_bar, SiN_mem_expected_time, "Silicon Nitride membrane Boolean Operation")
+        print(f"    SiN_mem ~ {np.round(SiN_expected_time, 2)} secs")
+        self.boolean_SiN_mem()
 
-        # with tqdm(total=max([ground_plane_expected_time, SiN_mem_expected_time, SiO_expected_time, SiN_mem_expected_time])) as pbar:
-        #     bool_done = {}
-        #     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-        #         bool_done["ground"] = executor.submit(self.boolean_ground_plane) #, desc="Ground Plane Boolean Operation", total=ground_plane_expected_time
-        #         bool_done["SiN"] = executor.submit(self.boolean_SiN) #, desc="Silicon Nitride Boolean Operation", total=SiN_expected_time
-        #         bool_done["SiO"] = executor.submit(self.boolean_SiO) #, desc="Silicon DiOxide Boolean Operation", total=SiO_expected_time
-        #         bool_done["SiN_mem"] = executor.submit(self.boolean_SiN_mem) #, desc="Silicon Nitride membrane Boolean Operation", total=SiN_mem_expected_time
-        #         # Maybe this does not work assigning to dict????
-        #         for key in bool_done:
-        #             if not bool_done[key]:
-        #                 pbar.update(very_first_time - time.time())
-        #     pbar.close()
-        # start_time = time.time()
-        # groundplane = gdspy.boolean(self.ground_plane_positives.get_polygons([self.Nb_Groundplane["layer"],self.Nb_Groundplane["datatype"]]),
-        #                             self.ground_plane_cutouts,
-        #                             "not", precision=0.01, **self.Nb_Groundplane)
-        # self.Main.add(groundplane) # then adds this groundplane geometry to the main cell
+        print(f"    SiN ~ {np.round(SiN_mem_expected_time, 2)} secs")
+        self.boolean_SiN()
 
-        # if ground_progress_thread.is_alive():
-        #     ground_progress_thread.stop()
-        # print("    Ground Plane boolean operation DONE\n")
-        # end_time = time.time()
-        # print("    time taken to do ground = " + str(end_time - start_time) + "\n\n\n")
+        print(f"    Grnd ~ {np.round(ground_plane_expected_time, 2)} secs")
+        self.boolean_ground_plane()
 
-        # SiNDep
-        # combined_number_of_SiN_dep_positives_cutouts = 0
-        # for li in self.silicon_nitride_positives.get_polygons():
-        #     combined_number_of_SiN_dep_positives_cutouts += len(li)
-        #
-        # for li in self.silicon_nitride_cutouts.get_polygons():
-        #     combined_number_of_SiN_dep_positives_cutouts += len(li)
-        #
-        # expected_time = combined_number_of_SiN_dep_positives_cutouts*2.955534e-09
-        # SiN_progress_thread = threading.Thread(target=self.expected_time_progress_bar, args=(int(expected_time), "dielectric Boolean Operation"), daemon=True)
-        # SiN_progress_thread.run()
+        # IN TESTING MAKING THE BOOL OPERATIONS CONCURRENT TO SPEED UP.
 
-        # start_time = time.time()
-        # dielectric_layer = gdspy.boolean(self.silicon_nitride_positives.get_polygons([self.SiN_dep["layer"],self.SiN_dep["datatype"]]),
-        #                                  self.silicon_nitride_cutouts,
-        #                                  "not", precision=0.01, **self.SiN_dep) # note the positives need to be a polygon set so you get polygons with tupple (3,0) which is layer 3 datatype 0 i.e. the SiN layer
-        #
-        # if self.silicon_nitride_positives.get_polygons([3,0]) != []:
-        #     self.Main.add(dielectric_layer) # then adds this dielectric geometry to the main cell
-        #
-        # if SiN_progress_thread.is_alive():
-        #     SiN_progress_thread.stop()
-        # print("    dielectirc layer boolean operation DONE\n")
-        # end_time = time.time()
-        # print("    time taken to do sin_dep = " + str(end_time - start_time) + "\n\n\n")
-
-        # # SiOLayer
-        #     combined_number_of_SiO_positives_cutouts = 0
-        #     for li in self.silicon_oxide_positives.get_polygons():
-        #         combined_number_of_SiO_positives_cutouts += len(li)
-        #
-        #     for li in self.silicon_oxide_cutouts.get_polygons():
-        #         combined_number_of_SiO_positives_cutouts += len(li)
-        #
-        #     expected_time = combined_number_of_SiO_positives_cutouts*2.73806e-05
-        #     SiO_progress_thread = threading.Thread(target=self.expected_time_progress_bar, args=(int(expected_time), "Silicon DiOxide Boolean Operation"), daemon=True)
-        #     SiO_progress_thread.run()
-        #
-        # start_time = time.time()
-        # SiO_layer = gdspy.boolean(self.silicon_oxide_positives.get_polygons([self.SiO["layer"],self.SiO["datatype"]]),
-        #                           self.silicon_oxide_cutouts,
-        #                           "not", precision=0.01, **self.SiO) # note the positives need to be a polygon set so you get polygons with tupple (3,0) which is layer 3 datatype 0 i.e. the SiN layer
-        #
-        # self.Main.add(SiO_layer) # then adds this dielectric geometry to the main cell
-        # if SiO_progress_thread.is_alive():
-        #     SiO_progress_thread.stop()
-        # print("    Silicon DiOxide layer boolean operation DONE\n")
-        # end_time = time.time()
-        # print("    time taken to do SiO = " + str(end_time - start_time) + "\n\n\n")
-
-        # # SiNmembrane
-        #     combined_number_of_SiN_mem_positives_cutouts = 0
-        #     for li in self.silicon_nitride_positives.get_polygons():
-        #         combined_number_of_SiN_mem_positives_cutouts += len(li)
-        #
-        #     for li in self.silicon_oxide_cutouts.get_polygons():
-        #         combined_number_of_SiN_mem_positives_cutouts += len(li)
-        #
-        #     expected_time = combined_number_of_SiN_mem_positives_cutouts*1.92823e-05
-        #     SiN_mem_progress_thread = threading.Thread(target=self.expected_time_progress_bar, args=(int(expected_time), "SiN membrane Boolean Operation"), daemon=True)
-        #     SiN_mem_progress_thread.run()
-        #
-        # start_time = time.time()
-        # SiN_membrane_layer = gdspy.boolean(self.silicon_nitride_membrane_positives.get_polygons([self.SiN_Membrane["layer"],self.SiN_Membrane["datatype"]]),
-        #                                    self.silicon_nitride_membrane_cutouts,
-        #                                    "not", precision=0.01, **self.SiN_Membrane) # note the positives need to be a polygon set so you get polygons with tupple (3,0) which is layer 3 datatype 0 i.e. the SiN layer
-        #
-        # self.Main.add(SiN_membrane_layer) # then adds this dielectric geometry to the main cell
-        # if SiN_mem_progress_thread.is_alive():
-        #     SiN_mem_progress_thread.stop()
-        # print("    Silicon Nitride membrane layer boolean operation DONE\n")
-        # end_time = time.time()
-        # print("    time taken to do SiN mem = " + str(end_time - start_time) + "\n\n\n")
+        # with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        #     bool_ground_done = executor.submit(
+        #         self.boolean_ground_plane
+        #     )  # , desc="Ground Plane Boolean Operation", total=ground_plane_expected_time
+        #     bool_SiN_done = executor.submit(self.boolean_SiN)  # , desc="Silicon Nitride Boolean Operation", total=SiN_expected_time
+        #     bool_SiO_done = executor.submit(self.boolean_SiO)  # , desc="Silicon DiOxide Boolean Operation", total=SiO_expected_time
+        #     Boolean_SiN_mem_done = executor.submit(
+        #         self.boolean_SiN_mem
+        #     )  # , desc="Silicon Nitride membrane Boolean Operation", total=SiN_mem_expected_time
 
         very_last_time = time.time()
         print("    The whole time taken overall = " + str(very_last_time - very_first_time) + "\n\n\n")
@@ -9143,6 +9272,7 @@ class SOUK_Functions:
             MainDevice_mirrored_x.write_gds(mirrored_x_filename)
 
         if make_mirrored_along_y:
+            print("MAKING MIRRORED ALONG Y DOES NOT WORK CORRECTLY BECUASE GSPY AND OR PHIDL HAS DEEP MORAL FAILINGS")
             if mirrored_y_filename == "":
                 mirrored_y_filename = filename[:-4] + "_MIRRORED_ACROSS_Y.gds"
             elif mirrored_y_filename[-4:] != ".gds":
