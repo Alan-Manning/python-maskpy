@@ -7468,7 +7468,9 @@ class SOUK_Functions:
 
         return rel_ant_conect_positions
 
-    def add_sma_connector_and_launcher_and_get_connection(self, x, y, rot, Main_config_file_dict, bend="none"):
+    def add_sma_connector_and_launcher_and_get_connection(
+        self, x, y, rot, Main_config_file_dict, bend="none", cutout_dielectric_over_taper=True
+    ):
         """
         Creates an SMA connector where the center pin is located at the x,y given
         and returns the point where a feedline should connect.
@@ -7492,6 +7494,11 @@ class SOUK_Functions:
             If not "none" it will bend the cpw coming out of the sma connector
             around to either the left or right 90 degrees and then calculate the
             taper to the edge of the connector. Anything other than "left" will be regarded as "none"
+
+        cutout_dielectric_over_taper : Bool
+            Default True. This will cutout the dielectirc over the taper
+            section and some of the section behind that also. This is overall
+            5000um of cutout. When False this will not be cutout.
 
         Returns
         -------
@@ -7541,18 +7548,18 @@ class SOUK_Functions:
         sma_box.rotate(rot, [x, y])
         self.Main.add(sma_box)
 
-        # TODO Make this a propper implimentation
+        # TODO Make this a propper implimentation for bends in path also
         # making the dielectric cutout in the wide section if the launcher
-        dielectirc_cutout_length = 4000
-        dielectirc_cutout_height = 2500
-        cutout_box = gdspy.Rectangle(
-            [x + (sma_square_width / 2) + sma_square_offset_right - taper_length, y - (dielectirc_cutout_height / 2)],
-            [x + (sma_square_width / 2) + sma_square_offset_right, y + (dielectirc_cutout_height / 2)],
-            **self.SiN_dep,
-        )
-        cutout_box.rotate(rot, [x, y])
-        self.silicon_nitride_cutouts.add([cutout_box])
-        # self.Main.add(cutout_box)
+        if cutout_dielectric_over_taper:
+            dielectirc_cutout_length = 5000
+            dielectirc_cutout_height = 5000
+            cutout_box = gdspy.Rectangle(
+                [x + (sma_square_width / 2) + sma_square_offset_right - dielectirc_cutout_length, y - (dielectirc_cutout_height / 2)],
+                [x + (sma_square_width / 2) + sma_square_offset_right, y + (dielectirc_cutout_height / 2)],
+                **self.SiN_dep,
+            )
+            cutout_box.rotate(rot, [x, y])
+            self.silicon_nitride_cutouts.add([cutout_box])
 
         # making cpw and taper
         if (bend != "left") and (bend != "right"):
@@ -8379,10 +8386,14 @@ class SOUK_Functions:
 
         new_outline_points = np.roll(new_outline.polygons[0], 2, axis=0)
 
-        hex_line_test = gdspy.FlexPath(
+        solid_hex_line_path = gdspy.FlexPath(
             new_outline_points, diceline_linewidth, offset=-diceline_linewidth / 2, ends="flush", **self.Tab_dicing_line
         )
-        self.Main.add(hex_line_test)
+        solid_hex_line_polys = self.get_polys_from_flexpath(solid_hex_line_path)
+        for poly_points in solid_hex_line_polys:
+            solid_hex_line_poly = gdspy.Polygon(poly_points, **self.Tab_dicing_line)
+            self.Main.add(solid_hex_line_poly)
+        # self.Main.add(hex_line_test)
 
         left_end = [
             new_outline_points[-1][0] + (diceline_linewidth / 2) * cos(-5 * pi / 6),
@@ -8954,7 +8965,8 @@ class SOUK_Functions:
             precision=0.01,
             **self.Nb_Groundplane,
         )
-        self.Main.add(groundplane)  # then adds this groundplane geometry to the main cell
+        if self.ground_plane_positives.get_polygons([self.Nb_Groundplane["layer"], self.Nb_Groundplane["datatype"]]) != []:
+            self.Main.add(groundplane)  # then adds this groundplane geometry to the main cell
 
         print("    Ground Plane boolean operation DONE")
         end_time = time.time()
@@ -8972,7 +8984,7 @@ class SOUK_Functions:
             **self.SiN_dep,
         )  # note the positives need to be a polygon set so you get polygons with tupple (3,0) which is layer 3 datatype 0 i.e. the SiN layer
 
-        if self.silicon_nitride_positives.get_polygons([3, 0]) != []:
+        if self.silicon_nitride_positives.get_polygons([self.SiN_dep["layer"], self.SiN_dep["datatype"]]) != []:
             self.Main.add(dielectric_layer)  # then adds this dielectric geometry to the main cell
         print("    dielectirc layer boolean operation DONE")
         end_time = time.time()
@@ -8991,7 +9003,8 @@ class SOUK_Functions:
             **self.SiO,
         )  # note the positives need to be a polygon set so you get polygons with tupple (3,0) which is layer 3 datatype 0 i.e. the SiN layer
 
-        self.Main.add(SiO_layer)  # then adds this dielectric geometry to the main cell
+        if self.silicon_oxide_positives.get_polygons([self.SiO["layer"], self.SiO["datatype"]]) != []:
+            self.Main.add(SiO_layer)  # then adds this dielectric geometry to the main cell
         print("    Silicon DiOxide layer boolean operation DONE")
         end_time = time.time()
         time_taken = np.round(end_time - start_time, 2)
@@ -9007,8 +9020,9 @@ class SOUK_Functions:
             precision=0.01,
             **self.SiN_Membrane,
         )  # note the positives need to be a polygon set so you get polygons with tupple (3,0) which is layer 3 datatype 0 i.e. the SiN layer
+        if self.silicon_nitride_membrane_positives.get_polygons([self.SiN_Membrane["layer"], self.SiN_Membrane["datatype"]]) != []:
+            self.Main.add(SiN_membrane_layer)  # then adds this dielectric geometry to the main cell
 
-        self.Main.add(SiN_membrane_layer)  # then adds this dielectric geometry to the main cell
         print("    Silicon Nitride membrane layer boolean operation DONE")
         end_time = time.time()
         time_taken = np.round(end_time - start_time, 2)
@@ -9272,7 +9286,7 @@ class SOUK_Functions:
             MainDevice_mirrored_x.write_gds(mirrored_x_filename)
 
         if make_mirrored_along_y:
-            print("MAKING MIRRORED ALONG Y DOES NOT WORK CORRECTLY BECUASE GSPY AND OR PHIDL HAS DEEP MORAL FAILINGS")
+            print("Making mirrored along y may produce unexpected results with FlexPaths!")  # Deep moral failings with phidl and gdspy
             if mirrored_y_filename == "":
                 mirrored_y_filename = filename[:-4] + "_MIRRORED_ACROSS_Y.gds"
             elif mirrored_y_filename[-4:] != ".gds":
