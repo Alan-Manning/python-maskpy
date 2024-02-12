@@ -1,22 +1,22 @@
-"""
-This is a package for making elements for a SOUK gds mask.
+"""This is a package for making elements for a SOUK gds mask.
 
 This package relys upon gdspy.
 """
 # import threading
 import concurrent.futures
 import copy
+import datetime
 import os
 import time
-import datetime
 import xml.etree.ElementTree as ET
 
 import gdspy
 import numpy as np
 import pandas as pd
-from numpy import cos as cos
 
 # import math
+from numpy import cos as cos
+from numpy import mean
 from numpy import pi as pi
 from numpy import sin as sin
 from numpy import tan as tan
@@ -246,8 +246,7 @@ class SOUK_Functions:
         }
 
     def inside_hexagon(self, xy, hex_rad, hex_center=[0, 0]):
-        """
-        Checks if an xy point sits within a hexagon with given radius.
+        """Checks if an xy point sits within a hexagon with given radius.
 
         Parameters
         ----------
@@ -268,7 +267,6 @@ class SOUK_Functions:
         boolean :
             True if the xy point given sits within the hexagon.
             False if the xy point sits on the boundary or outside the hexagon.
-
         """
 
         R = hex_rad
@@ -369,9 +367,8 @@ class SOUK_Functions:
         return_two_grids=False,
         return_split_point=False,
     ):
-        """
-        Generates a split hex pack grid within a hexagon. This is a hex pack that has a
-        horizontal split along the center.
+        """Generates a split hex pack grid within a hexagon. This is a hex pack
+        that has a horizontal split along the center.
 
         Parameters
         ----------
@@ -427,7 +424,6 @@ class SOUK_Functions:
                 Returns a list containing the two halfs, [bot_hex_grid, top_hex_grid],
                 where each is a list of [x,y] lists which define the hex pack grid
                 points below and about the center of the bounding hexagon.
-
         """
         hex_grid = []
 
@@ -510,8 +506,8 @@ class SOUK_Functions:
         return hex_grid
 
     def center_up_hex_grid(self, hex_grid, wafer_center_xy, only_horizontal_center=False, only_vertical_center=False):
-        """
-        Takes in a list of [x,y] grid points and centers them about a central point.
+        """Takes in a list of [x,y] grid points and centers them about a
+        central point.
 
         Parameters
         ----------
@@ -535,7 +531,6 @@ class SOUK_Functions:
         shifted_grid : list
             This is a list of the same form as the hex_grid passed in but each
             [x,y] has been adjusted accordingly by some dx, dy to center the grid.
-
         """
         sorted_hex_grid = sorted(hex_grid.copy(), key=lambda k: [k[1], k[0]])
         left = min(sorted_hex_grid)[0]
@@ -557,13 +552,12 @@ class SOUK_Functions:
         return shifted_grid
 
     def generate_octagonal_holder_port_dict(self, center_xy, octagon_rotation, wafer_radius=75000.0):
-        """
-        Generates a dictionary of port x, y, and rotaions for the octagonal holder
-        design. This contains 16 port locations where the two on each edge of the
-        octagon are 10000um from the center point of that edge. This dictionary has
-        keys "0" through "16" where "0" is the left most face upper, the numbering
-        continues going counter-clockwise. each key contains the x,y and roation of
-        the octagon port conection points.
+        """Generates a dictionary of port x, y, and rotaions for the octagonal
+        holder design. This contains 16 port locations where the two on each
+        edge of the octagon are 10000um from the center point of that edge.
+        This dictionary has keys "0" through "16" where "0" is the left most
+        face upper, the numbering continues going counter-clockwise. each key
+        contains the x,y and roation of the octagon port conection points.
 
         Parameters
         ----------
@@ -586,7 +580,6 @@ class SOUK_Functions:
         oct_ports_dict : dict
             dictionary containing the x,y,rot(degrees) for each port in the
             octagonal holder.
-
         """
 
         six_inch = 150000
@@ -661,10 +654,9 @@ class SOUK_Functions:
         return oct_ports_dict
 
     def make_Toms_6_inch_holder_and_get_ports(self, chip_center_xy, wafer_flat_length, middle_flat_angle=(-pi / 2)):
-        """
-        Generates a dictionary of port x, y, and rotaions for the 6inch wafer
-        holder design. This contains 18 port locations where the three on each
-        edge of the center point and vertexes of a hexagon edge. This
+        """Generates a dictionary of port x, y, and rotaions for the 6inch
+        wafer holder design. This contains 18 port locations where the three on
+        each edge of the center point and vertexes of a hexagon edge. This
         dictionary has keys "0" through "18" where "0" is botttom most middle
         right of the wafer where the flat is located at the bottom, the
         numbering continues going counter-clockwise. Each dict key contains the
@@ -691,7 +683,6 @@ class SOUK_Functions:
         ports_dict : dict
             dictionary containing the x,y,rot(**in radians**) for each port in
             the 6inch holder.
-
         """
 
         six_inch = 150000
@@ -797,8 +788,7 @@ class SOUK_Functions:
         return ports_dict
 
     def get_SOUK_boundary_hexagon(self):
-        """
-        Generates the boundary polygon points for the SOUK holder boundary.
+        """Generates the boundary polygon points for the SOUK holder boundary.
 
         Returns
         -------
@@ -840,8 +830,7 @@ class SOUK_Functions:
         return polygon_points
 
     def make_silicon_wafer(self, wafer_diameter, flat_length, layer, chip_center=[0, 0], flat_angle=(-pi / 2)):
-        """
-        Makes the shape of the silicon wafer with a flat on one side and
+        """Makes the shape of the silicon wafer with a flat on one side and
         returns this shape as a PolygonSet in layer 0 or the layer specified.
 
         Parameters
@@ -872,7 +861,6 @@ class SOUK_Functions:
         final_wafer : gdspy PolygonSet
             The final wafer shape made with the cutout flat in it on the layer
             specified by the layer.
-
         """
 
         wafer_radius = wafer_diameter / 2
@@ -910,8 +898,7 @@ class SOUK_Functions:
         dice_line_tab_positions=["left"],
         add_groundplane_under_test_chip=True,
     ):
-        """
-        Make the boundary for a test chip quad. Adds a centered pin hole and
+        """Make the boundary for a test chip quad. Adds a centered pin hole and
         slotted pin hole.
 
         Parameters
@@ -981,7 +968,6 @@ class SOUK_Functions:
             list of [x,y] lists defining the coordinates of the outer polygon.
             **Note This is only returned if return_outer_poly_points KwArg is
             True**.
-
         """
 
         config = Main_config_file_dict["test_chip_quad"]
@@ -1168,8 +1154,7 @@ class SOUK_Functions:
         return horn_centers
 
     def add_cardiff_logo(self, logo_xy, size=100):
-        """
-        Adds the cardiff logo as a cutout in the ng groundplane layer.
+        """Adds the cardiff logo as a cutout in the ng groundplane layer.
         Requires the logo gds file. Logo will be placed centered on the logo_xy
         given.
 
@@ -1184,7 +1169,6 @@ class SOUK_Functions:
         size : int, flaot
             The size of the sides of the cardiff logo square.
             The default is 100.
-
         """
         x = logo_xy[0]
         y = logo_xy[1]
@@ -1226,11 +1210,11 @@ class SOUK_Functions:
         return
 
     def add_MLA_marker(self, x, y, materials, inner_lw=5, outer_lw=10):
-        """
-        Adds a singe or series of square markers with a cross inside centered
-        on the x,y coord given. Each subsequent material will make a square
-        larger than the previous by 1x the outer linewidth such that they are
-        staggered. Inner crosses reamin the same and do not get staggered.
+        """Adds a singe or series of square markers with a cross inside
+        centered on the x,y coord given. Each subsequent material will make a
+        square larger than the previous by 1x the outer linewidth such that
+        they are staggered. Inner crosses reamin the same and do not get
+        staggered.
 
         Parameters
         ----------
@@ -1250,7 +1234,6 @@ class SOUK_Functions:
         outer_lw : float, int
             linewidth of the outer square section of the marker.
             The default value = 10.
-
         """
 
         outer_square_side_length = 1000
@@ -1322,8 +1305,7 @@ class SOUK_Functions:
         return
 
     def add_initial_allignment_markers(self, x, y, cross_length=300, linewidth=5, cutout_square_size=1000):
-        """
-        Adds a singe MLA marker cross centered on the x,y coord given. Also
+        """Adds a singe MLA marker cross centered on the x,y coord given. Also
         adds a cutout window in layers that will be deposited ontop of this
         (namely Nb_groundplane).
 
@@ -1345,7 +1327,6 @@ class SOUK_Functions:
         cutout_square_size : float, int
             The width and heigh of the outer square cutout window.
             Default = 1000.
-
         """
 
         vert_box = gdspy.Rectangle(
@@ -1366,8 +1347,7 @@ class SOUK_Functions:
         return
 
     def add_caliper_alignment_markers(self, x, y, rot, layer1, layer2, layer1_text, layer2_text):
-        """
-        Adds Allignment Markers to the mask in a cutout centered on the x,y
+        """Adds Allignment Markers to the mask in a cutout centered on the x,y
         given. This consists of 2 main corsses and a series of calipers made
         from the two materials given.
 
@@ -1387,7 +1367,6 @@ class SOUK_Functions:
         layer1_text, layer2_text : str
             These should be strings that are the text to be placed above and
             below in the marker.
-
         """
 
         # adding the Text
@@ -1668,8 +1647,7 @@ class SOUK_Functions:
         return
 
     def add_test_crossover_structure_box_section(self, x, y, Main_config_file_dict, rot=0.0):
-        """
-        Adds a box of size 5500 centered on the x,y given that contains a
+        """Adds a box of size 5500 centered on the x,y given that contains a
         series of 3 crossover sections that connect to pads.
 
         Parameters
@@ -1689,8 +1667,6 @@ class SOUK_Functions:
             the left and right. This will only take the values in the range
             0 to pi/2. Other values will cause issues with the connections
             to the crossovers.
-
-
         """
 
         box_w_h = 5500
@@ -1878,8 +1854,7 @@ class SOUK_Functions:
         return
 
     def add_test_straight_line_structure_box_section(self, x, y, rot=0.0):
-        """
-        Adds a box of size 5500 centered on the x,y given that contains a
+        """Adds a box of size 5500 centered on the x,y given that contains a
         series of 6 stright line sections that connect to pads.
 
         Parameters
@@ -1893,7 +1868,6 @@ class SOUK_Functions:
             The angle (**in Radians**) the structure should be rotated.
             Default is 0 which has the pads on the left and right. This will
             only take the values in the range 0 to pi/2.
-
         """
 
         box_w_h = 5500
@@ -2071,8 +2045,7 @@ class SOUK_Functions:
         return
 
     def make_DC_structure_pads_and_meander(self, x, y, rot, DC_structure_material):
-        """
-        This Makes two pads and a meander connecting them. Pads are 100x the
+        """This Makes two pads and a meander connecting them. Pads are 100x the
         size of the linewidth connecting them.
 
         Parameters
@@ -2089,7 +2062,6 @@ class SOUK_Functions:
             This should be a layer dict that contains keys for 'layer' and
             'datatype' e.g. souk.Aluminium, souk.Nb_Antenna, or even custom
             {"layer": 1234, "datatype": 0}.
-
         """
         pad_size = 1000
         meander_linewidth = 10
@@ -2140,8 +2112,7 @@ class SOUK_Functions:
         return
 
     def add_test_DC_structure_box_section(self, x, y, DC_structure_material, BL_text=""):
-        """
-        Adds a box of size 8000 centered on the x,y given that contains a
+        """Adds a box of size 8000 centered on the x,y given that contains a
         series of 5 test DC lines and pads. Pads are 100x the size of the
         linewidth connecting them.
 
@@ -2216,10 +2187,9 @@ class SOUK_Functions:
         right_mid_gap=0,
         left_mid_gap=0,
     ):
-        """
-        Adds edge cutouts in the groundplane layer around the border of the
-        test chip quad. These edge cuts sit within the defined border. There
-        is by default edge cuts across every edge but there can be a gap in the
+        """Adds edge cutouts in the groundplane layer around the border of the
+        test chip quad. These edge cuts sit within the defined border. There is
+        by default edge cuts across every edge but there can be a gap in the
         middle of any edge specified by the #_mid_gap arguments. The size and
         spacing of these edge cuts is defined in config.
 
@@ -2239,7 +2209,6 @@ class SOUK_Functions:
         ------
         top_mid_gap, bot_mid_gap, right_mid_gap, left_mid_gap : float, int
             The gap in the edge cuts in the middle of the respective edge.
-
         """
 
         edge_cut_length = 250
@@ -2379,12 +2348,11 @@ class SOUK_Functions:
     def add_test_chip_quad_tabbed_dicing_line(
         self, test_chip_quad_center_xy, test_chip_quad_width, test_chip_quad_height, tab_positions="left", corner_overrun_length=200
     ):
-        """
-        Adds a tabbed dicing line around the test chip quad. This is a tabbed
-        dicing line on all tab_positions specified otherwise will be a solid
-        dicing line. The tab positions is by default only the left side but
-        can be any edge. There are corner markers by default that overextend
-        by 200um but is variable.
+        """Adds a tabbed dicing line around the test chip quad. This is a
+        tabbed dicing line on all tab_positions specified otherwise will be a
+        solid dicing line. The tab positions is by default only the left side
+        but can be any edge. There are corner markers by default that
+        overextend by 200um but is variable.
 
         Parameters
         ----------
@@ -2409,7 +2377,6 @@ class SOUK_Functions:
         corner_overrun_length : int, float
             This is the length the corners of the tabbed dicing line should
             overrun at the corners of the test chip quad. The default is 200.
-
         """
 
         tab_length = 4000  # config
@@ -2682,9 +2649,8 @@ class SOUK_Functions:
         # return
 
     def add_text_under_horn_in_test_chip_quad(self, text_string, horn_center_x, horn_center_y):
-        """
-        Adds a label under the horn on the test chip quad with the text string
-        given.
+        """Adds a label under the horn on the test chip quad with the text
+        string given.
 
         Parameters
         ----------
@@ -2694,7 +2660,6 @@ class SOUK_Functions:
         horn_center_x, horn_center_x : float, int
             The x, and y coordinate respectively for the center of the horn
             that needs the text underneath.
-
         """
         x_offset_from_horn = 0
         y_offset_from_horn = -3100
@@ -2712,9 +2677,8 @@ class SOUK_Functions:
         return
 
     def get_config_excel(self, file_name, sheet_name, path="config_files\\"):
-        """
-        gets the config excel file containing the variable names and respective
-        vales. different sheets contain different vairables.
+        """Gets the config excel file containing the variable names and
+        respective vales. different sheets contain different vairables.
 
         Parameters
         ----------
@@ -2758,20 +2722,16 @@ class SOUK_Functions:
         return config_dict
 
     def deg_to_rad(self, deg):
-        """
-        Converts an angle given in degrees to radiands.
-        """
+        """Converts an angle given in degrees to radiands."""
         return (deg / 180.0) * pi
 
     def rad_to_deg(self, rad):
-        """
-        Converts an angle given in radiands to degrees.
-        """
+        """Converts an angle given in radiands to degrees."""
         return rad * (180.0 / pi)
 
     def rotate(self, ox, oy, px, py, angle):
-        """
-        Rotate a point counterclockwise by a given angle around a given origin.
+        """Rotate a point counterclockwise by a given angle around a given
+        origin.
 
         The angle should be given in radians.
         """
@@ -2780,8 +2740,7 @@ class SOUK_Functions:
         return qx, qy
 
     def rotate_points_list(self, points, rot_angle, ox=0, oy=0):
-        """
-        Rotates a list of points lists all by angle.
+        """Rotates a list of points lists all by angle.
 
         Rotates counterclockwise by a given angle around a given origin.
         The angle should be given in radians.
@@ -2799,8 +2758,7 @@ class SOUK_Functions:
         return new_points
 
     def rotate_and_move_points_list(self, points, rot_angle, dx, dy, ox=0, oy=0):
-        """
-        Rotates and moves a list of points lists all by angle and dx,dy.
+        """Rotates and moves a list of points lists all by angle and dx,dy.
 
         Rotates counterclockwise by a given angle around a given origin.
         The angle should be given in radians.
@@ -2820,8 +2778,7 @@ class SOUK_Functions:
         return new_points
 
     def move_points_list(self, points, dx, dy):
-        """
-        Moves a list of points lists all by dx,dy.
+        """Moves a list of points lists all by dx,dy.
 
         Parameters
         ----------
@@ -2836,7 +2793,6 @@ class SOUK_Functions:
         new_points : list
             Returns a new list of points that have been Moved. List is of the
             same form as input points list.
-
         """
         points_copy = points.copy()
         new_points = []
@@ -2849,8 +2805,7 @@ class SOUK_Functions:
         return new_points
 
     def move_single_point(self, point, dx, dy):
-        """
-        Moves an [x,y] point by dx,dy.
+        """Moves an [x,y] point by dx,dy.
 
         Parameters
         ----------
@@ -2865,7 +2820,6 @@ class SOUK_Functions:
         new_point : list
             Returns a new point list that has been Moved. List is of the
             same form as input point list.
-
         """
         point_copy = point.copy()
         px = point_copy[0]
@@ -2875,8 +2829,7 @@ class SOUK_Functions:
         return new_point
 
     def rotate_and_move_single_point(self, point, rot_angle, dx, dy, ox=0, oy=0):
-        """
-        Rotates and moves a list of tupple points all by angle and dx,dy.
+        """Rotates and moves a list of tupple points all by angle and dx,dy.
 
         Rotates counterclockwise by a given angle around a given origin.
         The angle should be given in radians.
@@ -2892,8 +2845,7 @@ class SOUK_Functions:
         return new_point
 
     def mirror_points_around_yaxis(self, points):
-        """
-        mirrors a set of points around the y axis.
+        """Mirrors a set of points around the y axis.
 
         points : list
             list of [x,y] lists defining the x,y for each point to mirror.
@@ -2908,8 +2860,7 @@ class SOUK_Functions:
         return points
 
     def mirror_points_around_xaxis(self, points):
-        """
-        mirrors a set of points around the x axis.
+        """Mirrors a set of points around the x axis.
 
         points : list
             list of [x,y] lists defining the x,y for each point to mirror.
@@ -2924,11 +2875,10 @@ class SOUK_Functions:
         return points
 
     def create_miter_join(self, p0, v0, p1, v1, p2, w):
-        """
-        creates a miter on the corner of the bends in a gdspy Flexpath object.
-        takes 6 arguments (vertex and direction vector from both segments being
-        joined, the center and width of the path) and return a list of vertices
-        that make the join.
+        """Creates a miter on the corner of the bends in a gdspy Flexpath
+        object. takes 6 arguments (vertex and direction vector from both
+        segments being joined, the center and width of the path) and return a
+        list of vertices that make the join.
 
         Parameters
         ----------
@@ -2978,8 +2928,8 @@ class SOUK_Functions:
         ]
 
     def get_polys_from_flexpath(self, flexpath):
-        """
-        Gets the polygon points for the shape created by a gdspy Flexpath object.
+        """Gets the polygon points for the shape created by a gdspy Flexpath
+        object.
 
         Parameters
         ----------
@@ -2990,7 +2940,6 @@ class SOUK_Functions:
         -------
         polys : list
             list of [x,y] lists defining the points in the polygon.
-
         """
         polys = []
         for i in range(len(flexpath.get_polygons())):
@@ -3002,13 +2951,53 @@ class SOUK_Functions:
 
         return polys
 
-    def add_antena(self, x, y, rot, Main_config_file_dict, add_grnd_cutout=True, add_SiN_dep_cutout=True, add_backside_check=True):
+    def make_flexpath_into_polygons_and_add_to_main(self, flexpath, layer, datatype):
+        """Gets the polygon points for the shape created by a gdspy Flexpath
+        object. and then add that to Main as polygons.
+
+        Parameters
+        ----------
+        flexpath : object
+            an instanciated gdspy.Flexpath object.
+
+        layer : int
+            The layer number for the flexpath polygons.
+
+        datatype : int
+            The datatype number for the flexpath polygons.
         """
-        Adds the antenna geometries to the Main cell. These are the 4 antennas in
-        at the center of each horn block. Optionally adds a ground plane cutout
-        and Silicon Nitride deoposition cutout as a circle around the antenna
-        structure. These geometries are defined by the dimensions within the
-        Main_config_file_dict.
+
+        # polys = []
+        # for i in range(len(flexpath.get_polygons())):
+        #     poly_set = []
+        #     for k in range(len(flexpath.get_polygons()[i])):
+        #         poly_set.append([flexpath.get_polygons()[i][k][0], flexpath.get_polygons()[i][k][1]])
+        #
+        #     polys.append(poly_set)
+        poly_points_from_flexpath = self.get_polys_from_flexpath(flexpath)
+        for i in range(len(poly_points_from_flexpath)):
+            path_polygon = gdspy.Polygon(poly_points_from_flexpath[i], layer, datatype)
+            self.Main.add([path_polygon])
+
+        return
+        # return polys
+
+    def add_antena(
+        self,
+        x,
+        y,
+        rot,
+        Main_config_file_dict,
+        add_grnd_cutout=True,
+        add_SiN_dep_cutout=True,
+        add_backside_check=True,
+        return_configurator_points=False,
+    ):
+        """Adds the antenna geometries to the Main cell. These are the 4
+        antennas in at the center of each horn block. Optionally adds a ground
+        plane cutout and Silicon Nitride deoposition cutout as a circle around
+        the antenna structure. These geometries are defined by the dimensions
+        within the Main_config_file_dict.
 
         Parameters
         ----------
@@ -3036,6 +3025,8 @@ class SOUK_Functions:
             Whether or not to add a circle in the backside check layer over the
             antenna structure.
 
+        return_configurator_points=False
+            return a the points for use in the configurator.
         """
         config = Main_config_file_dict["antenna"]
 
@@ -3100,7 +3091,87 @@ class SOUK_Functions:
             mirrored_y_backside_check_circle = gdspy.Round([-x, y], backside_check_circle_radius, **self.Backside_Check)
             self.MainBackside.add(mirrored_y_backside_check_circle)
 
-        return
+        if not return_configurator_points:
+            return
+
+        configurator_points = {}
+
+        ant_top_points = ant_top.polygons[0]
+        dx = (ant_top_points[3][0] - ant_top_points[4][0]) / 2
+        dy = (ant_top_points[3][1] - ant_top_points[4][1]) / 2
+
+        configurator_points["distance_from_center"] = {
+            "text": "distance_from_center",
+            "start": [x, y],
+            "end": [ant_top_points[3][0] - dx, ant_top_points[3][1] - dy],
+        }
+
+        configurator_points["base_width"] = {
+            "text": "base_width",
+            "start": [ant_top_points[3][0], ant_top_points[3][1]],
+            "end": [ant_top_points[4][0], ant_top_points[4][1]],
+        }
+
+        configurator_points["top_conect_width"] = {
+            "text": "top_conect_width",
+            "start": [ant_top_points[0][0], ant_top_points[0][1]],
+            "end": [ant_top_points[1][0], ant_top_points[1][1]],
+        }
+
+        configurator_points["straight_height"] = {
+            "text": "straight_height",
+            "start": [ant_top_points[2][0], ant_top_points[2][1]],
+            "end": [ant_top_points[3][0], ant_top_points[3][1]],
+        }
+
+        mid_dx = (ant_top_points[2][0] - ant_top_points[5][0]) / 2
+        mid_dy = (ant_top_points[2][1] - ant_top_points[5][1]) / 2
+        top_dx = (ant_top_points[1][0] - ant_top_points[0][0]) / 2
+        top_dy = (ant_top_points[1][1] - ant_top_points[0][1]) / 2
+
+        configurator_points["taper_height"] = {
+            "text": "taper_height",
+            "start": [ant_top_points[2][0] - mid_dx, ant_top_points[2][1] - mid_dy],
+            "end": [ant_top_points[1][0] - top_dx, ant_top_points[1][1] - top_dy],
+        }
+
+        configurator_points["antena_rotation"] = {
+            "text": "antena_rotation",
+            "start": [x, ant_top_points[1][1] - top_dy],
+            "end": [ant_top_points[1][0] - top_dx, ant_top_points[1][1] - top_dy],
+        }
+
+        annotate_ang = 0.0
+        configurator_points["grnd_cutout_circle_radius"] = {
+            "text": "grnd_cutout_circle_radius",
+            "start": [x, y],
+            "end": [
+                x + grnd_cutout_circle_radius * cos(annotate_ang),
+                y + grnd_cutout_circle_radius * sin(annotate_ang),
+            ],
+        }
+
+        annotate_ang -= 0.2
+        configurator_points["backside_check_circle_radius"] = {
+            "text": "backside_check_circle_radius",
+            "start": [x, y],
+            "end": [
+                x + backside_check_circle_radius * cos(annotate_ang),
+                y + backside_check_circle_radius * sin(annotate_ang),
+            ],
+        }
+
+        annotate_ang -= 0.2
+        configurator_points["sin_dep_cutout_circle_radius"] = {
+            "text": "sin_dep_cutout_circle_radius",
+            "start": [x, y],
+            "end": [
+                x + sin_dep_cutout_circle_radius * cos(annotate_ang),
+                y + sin_dep_cutout_circle_radius * sin(annotate_ang),
+            ],
+        }
+
+        return configurator_points
 
     def add_4_KID_outers_and_arms_new(
         self,
@@ -3121,13 +3192,12 @@ class SOUK_Functions:
         add_SiN_membrane_cutout=True,
         add_backside_check=True,
     ):
-        """
-        Adds the 4 KIDs geometries to the Main cell. The four kids are placed
-        around the center x, y point in order top right, top left, bot right,
-        bot left (as should be the order of the rel_kid_positions list).
+        """Adds the 4 KIDs geometries to the Main cell. The four kids are
+        placed around the center x, y point in order top right, top left, bot
+        right, bot left (as should be the order of the rel_kid_positions list).
         The KIDs geometries are defined by the dimensions within the
-        Main_config_file_dict. By default it will, but optionally can choose not
-        to, add all the neccessay cutouts for the structure.
+        Main_config_file_dict. By default it will, but optionally can choose
+        not to, add all the neccessay cutouts for the structure.
 
         Parameters
         ----------
@@ -3231,7 +3301,6 @@ class SOUK_Functions:
         add_backside_check=True
             Whether or not to add a backside check cover in the
             neccary place for the KID structure.
-
         """
         config = Main_config_file_dict["resonator"]
 
@@ -3331,13 +3400,13 @@ class SOUK_Functions:
         add_SiO_cutout=True,
         add_SiN_membrane_cutout=True,
         add_backside_check=True,
+        return_configurator_points=False,
     ):
-        """
-        Adds the KID geometry to the Main cell athe the x,y cooardinate given.
-        The KID is placed where the base middle of the inductive meander is at
-        this x,y. The KID geometry is defined by the dimensions within the
-        Main_config_file_dict. By default it will, but optionally can choose not
-        to, add all the neccessay cutouts for the structure.
+        """Adds the KID geometry to the Main cell athe the x,y cooardinate
+        given. The KID is placed where the base middle of the inductive meander
+        is at this x,y. The KID geometry is defined by the dimensions within
+        the Main_config_file_dict. By default it will, but optionally can
+        choose not to, add all the neccessay cutouts for the structure.
 
         Parameters
         ----------
@@ -3433,6 +3502,8 @@ class SOUK_Functions:
             Whether or not to add a backside check cover in the
             neccary place for the KID structure.
 
+        return_configurator_points=False
+            return a the points for use in the configurator.
         """
 
         IDC_and_frame_material_lookup = {"IDC_Nb": self.IDC_Nb, "Nb": self.Nb_Antenna, "Al": self.Aluminium}
@@ -3943,11 +4014,512 @@ class SOUK_Functions:
             backside_check_cover_poly = gdspy.Polygon(new_backside_check_cover_poly_points, **self.Backside_Check)
             self.Main.add(backside_check_cover_poly)
 
-        return
+        if not return_configurator_points:
+            return
 
-    def add_Lo_pass_filters(self, x, y, inner_ring_line_width, inner_ring_radius, init_angle, direction, Main_config_file_dict):
-        """
-        Adds the low pass filter arms around the inner ring of the filter bank.
+        configurator_points = {}
+
+        ####################################################################### Meander
+        configurator_points["meander_lw"] = {
+            "text": "meander_lw",
+            "start": [
+                (new_meander_path_points[5][0] + new_meander_path_points[6][0]) / 2,
+                new_meander_path_points[5][1] - (meander_lw / 2),
+            ],
+            "end": [(new_meander_path_points[5][0] + new_meander_path_points[6][0]) / 2, new_meander_path_points[5][1] + (meander_lw / 2)],
+        }
+
+        configurator_points["ant_pad_box_width"] = {
+            "text": "ant_pad_box_width",
+            "start": [new_ant_pad_box_points[0][0], (new_ant_pad_box_points[0][1] + new_ant_pad_box_points[1][1]) / 3],
+            "end": [new_ant_pad_box_points[3][0], (new_ant_pad_box_points[0][1] + new_ant_pad_box_points[1][1]) / 3],
+        }
+
+        configurator_points["ant_pad_box_height"] = {
+            "text": "ant_pad_box_height",
+            "start": [
+                (new_ant_pad_box_points[0][0] + new_ant_pad_box_points[3][0]) / 2,
+                new_ant_pad_box_points[0][1],
+            ],
+            "end": [
+                (new_ant_pad_box_points[1][0] + new_ant_pad_box_points[2][0]) / 2,
+                new_ant_pad_box_points[1][1],
+            ],
+        }
+
+        configurator_points["meander_corner_bend_radius"] = {
+            "text": "meander_corner_bend_radius",
+            "start": [
+                new_meander_path_points[6][0] + meander_corner_bend_radius,
+                new_meander_path_points[6][1] + meander_corner_bend_radius,
+            ],
+            "end": [
+                new_meander_path_points[6][0] + meander_corner_bend_radius - (np.sqrt(2) / 2) * meander_corner_bend_radius,
+                new_meander_path_points[6][1] + meander_corner_bend_radius - (np.sqrt(2) / 2) * meander_corner_bend_radius,
+            ],
+        }
+
+        configurator_points["meander_bot_width"] = {
+            "text": "meander_bot_width",
+            "start": [
+                new_meander_path_points[6][0],
+                new_meander_path_points[6][1] + meander_left_height_1 / 2,
+            ],
+            "end": [
+                new_meander_path_points[5][0],
+                new_meander_path_points[5][1] + meander_left_height_1 / 2,
+            ],
+        }
+
+        configurator_points["meander_left_height_1"] = {
+            "text": "meander_left_height_1",
+            "start": [
+                new_meander_path_points[6][0] - meander_corner_bend_radius,
+                new_meander_path_points[6][1],
+            ],
+            "end": [
+                new_meander_path_points[7][0] - meander_corner_bend_radius,
+                new_meander_path_points[7][1],
+            ],
+        }
+
+        configurator_points["meander_right_height_1"] = {
+            "text": "meander_right_height_1",
+            "start": [
+                new_meander_path_points[5][0],
+                new_meander_path_points[5][1],
+            ],
+            "end": [
+                new_meander_path_points[4][0],
+                new_meander_path_points[4][1],
+            ],
+        }
+
+        configurator_points["meander_left_width_1"] = {
+            "text": "meander_left_width_1",
+            "start": [
+                new_meander_path_points[7][0],
+                new_meander_path_points[7][1],
+            ],
+            "end": [
+                new_meander_path_points[8][0],
+                new_meander_path_points[8][1],
+            ],
+        }
+
+        configurator_points["meander_right_width_1"] = {
+            "text": "meander_right_width_1",
+            "start": [
+                new_meander_path_points[4][0],
+                new_meander_path_points[4][1],
+            ],
+            "end": [
+                new_meander_path_points[3][0],
+                new_meander_path_points[3][1],
+            ],
+        }
+
+        configurator_points["meander_left_height_2"] = {
+            "text": "meander_left_height_2",
+            "start": [
+                new_meander_path_points[8][0],
+                new_meander_path_points[8][1],
+            ],
+            "end": [
+                new_meander_path_points[9][0],
+                new_meander_path_points[9][1],
+            ],
+        }
+
+        configurator_points["meander_right_height_2"] = {
+            "text": "meander_right_height_2",
+            "start": [
+                new_meander_path_points[3][0],
+                new_meander_path_points[3][1],
+            ],
+            "end": [
+                new_meander_path_points[2][0],
+                new_meander_path_points[2][1],
+            ],
+        }
+
+        configurator_points["meander_left_width_2"] = {
+            "text": "meander_left_width_2",
+            "start": [
+                new_meander_path_points[9][0],
+                new_meander_path_points[9][1],
+            ],
+            "end": [
+                new_meander_path_points[10][0],
+                new_meander_path_points[10][1],
+            ],
+        }
+
+        configurator_points["meander_right_width_2"] = {
+            "text": "meander_right_width_2",
+            "start": [
+                new_meander_path_points[2][0],
+                new_meander_path_points[2][1],
+            ],
+            "end": [
+                new_meander_path_points[1][0],
+                new_meander_path_points[1][1],
+            ],
+        }
+
+        configurator_points["meander_left_height_3"] = {
+            "text": "meander_left_height_3",
+            "start": [
+                new_meander_path_points[10][0],
+                new_meander_path_points[10][1],
+            ],
+            "end": [
+                new_meander_path_points[11][0],
+                new_meander_path_points[11][1],
+            ],
+        }
+
+        configurator_points["meander_right_height_3"] = {
+            "text": "meander_right_height_3",
+            "start": [
+                new_meander_path_points[1][0],
+                new_meander_path_points[1][1],
+            ],
+            "end": [
+                new_meander_path_points[0][0],
+                new_meander_path_points[0][1],
+            ],
+        }
+
+        ####################################################################### IDC Frame
+        # left side
+        configurator_points["frame_meander_cover_box_width_left"] = {
+            "text": "frame_meander_cover_box_width",
+            "start": [
+                new_meander_cover_box_left_points[1][0],
+                new_meander_cover_box_left_points[1][1]
+                + (new_meander_cover_box_left_points[0][1] - new_meander_cover_box_left_points[1][1]) / 1.5,
+            ],
+            "end": [
+                new_meander_cover_box_left_points[2][0],
+                new_meander_cover_box_left_points[2][1]
+                + (new_meander_cover_box_left_points[3][1] - new_meander_cover_box_left_points[2][1]) / 1.5,
+            ],
+        }
+        # right side
+        configurator_points["frame_meander_cover_box_width_right"] = {
+            "text": "frame_meander_cover_box_width",
+            "start": [
+                new_meander_cover_box_right_points[1][0],
+                new_meander_cover_box_right_points[1][1]
+                + (new_meander_cover_box_right_points[0][1] - new_meander_cover_box_right_points[1][1]) / 1.5,
+            ],
+            "end": [
+                new_meander_cover_box_right_points[2][0],
+                new_meander_cover_box_right_points[2][1]
+                + (new_meander_cover_box_right_points[3][1] - new_meander_cover_box_right_points[2][1]) / 1.5,
+            ],
+        }
+
+        # left side
+        configurator_points["frame_meander_cover_box_height_left"] = {
+            "text": "frame_meander_cover_box_height",
+            "start": [new_meander_cover_box_left_points[3][0], new_meander_cover_box_left_points[3][1]],
+            "end": [new_meander_cover_box_left_points[2][0], new_meander_cover_box_left_points[2][1]],
+        }
+        # right side
+        configurator_points["frame_meander_cover_box_height_right"] = {
+            "text": "frame_meander_cover_box_height",
+            "start": [new_meander_cover_box_right_points[3][0], new_meander_cover_box_right_points[3][1]],
+            "end": [new_meander_cover_box_right_points[2][0], new_meander_cover_box_right_points[2][1]],
+        }
+
+        # left side
+        configurator_points["frame_bot_lw_left"] = {
+            "text": "frame_bot_lw",
+            "start": [
+                new_frame_left_points[0][0] + (new_frame_left_points[1][0] - new_frame_left_points[0][0]) / 2,
+                new_frame_left_points[5][1],
+            ],
+            "end": [
+                new_frame_left_points[0][0] + (new_frame_left_points[1][0] - new_frame_left_points[0][0]) / 2,
+                new_frame_left_points[0][1],
+            ],
+        }
+        # right side
+        configurator_points["frame_bot_lw_right"] = {
+            "text": "frame_bot_lw",
+            "start": [
+                new_frame_right_points[0][0] + (new_frame_right_points[1][0] - new_frame_right_points[0][0]) / 2,
+                new_frame_right_points[5][1],
+            ],
+            "end": [
+                new_frame_right_points[0][0] + (new_frame_right_points[1][0] - new_frame_right_points[0][0]) / 2,
+                new_frame_right_points[0][1],
+            ],
+        }
+
+        configurator_points["frame_bot_left_width"] = {
+            "text": "frame_bot_left_width",
+            "start": [new_frame_left_points[5][0], new_frame_left_points[5][1]],
+            "end": [new_frame_left_points[4][0], new_frame_left_points[4][1]],
+        }
+
+        configurator_points["frame_bot_right_width"] = {
+            "text": "frame_bot_right_width",
+            "start": [new_frame_right_points[5][0], new_frame_right_points[5][1]],
+            "end": [new_frame_right_points[4][0], new_frame_right_points[4][1]],
+        }
+
+        configurator_points["frame_left_lw"] = {
+            "text": "frame_left_lw",
+            "start": [new_frame_left_points[1][0], new_frame_left_points[1][1]],
+            "end": [new_frame_left_points[4][0], new_frame_left_points[1][1]],
+        }
+
+        configurator_points["frame_right_lw"] = {
+            "text": "frame_right_lw",
+            "start": [new_frame_right_points[1][0], new_frame_right_points[1][1]],
+            "end": [new_frame_right_points[4][0], new_frame_right_points[1][1]],
+        }
+
+        configurator_points["frame_left_height"] = {
+            "text": "frame_left_height",
+            "start": [new_frame_left_points[3][0], new_frame_left_points[3][1]],
+            "end": [new_frame_left_points[4][0], new_frame_left_points[4][1]],
+        }
+
+        configurator_points["frame_right_height"] = {
+            "text": "frame_right_height",
+            "start": [new_frame_right_points[3][0], new_frame_right_points[3][1]],
+            "end": [new_frame_right_points[4][0], new_frame_right_points[4][1]],
+        }
+
+        ####################################################################### Coupler Frame
+        configurator_points["coupler_frame_left_lw"] = {
+            "text": "coupler_frame_left_lw",
+            "start": [
+                new_coupler_frame_points[0][0],
+                new_coupler_frame_points[0][1] + (new_coupler_frame_points[1][1] - new_coupler_frame_points[0][1]) / 1.5,
+            ],
+            "end": [
+                new_coupler_frame_points[5][0],
+                new_coupler_frame_points[5][1] + (new_coupler_frame_points[1][1] - new_coupler_frame_points[0][1]) / 1.5,
+            ],
+        }
+
+        configurator_points["coupler_frame_left_height"] = {
+            "text": "coupler_frame_left_height",
+            "start": [new_coupler_frame_points[0][0], new_coupler_frame_points[0][1]],
+            "end": [new_coupler_frame_points[1][0], new_coupler_frame_points[1][1]],
+        }
+
+        configurator_points["coupler_frame_top_lw"] = {
+            "text": "coupler_frame_top_lw",
+            "start": [
+                new_coupler_frame_points[1][0] + (new_coupler_frame_points[2][0] - new_coupler_frame_points[1][0]) / 2.5,
+                new_coupler_frame_points[1][1],
+            ],
+            "end": [
+                new_coupler_frame_points[1][0] + (new_coupler_frame_points[2][0] - new_coupler_frame_points[1][0]) / 2.5,
+                new_coupler_frame_points[4][1],
+            ],
+        }
+
+        ####################################################################### IDC Arms
+        configurator_points["IDC_bot_arm_gap"] = {
+            "text": "IDC_bot_arm_gap",
+            "start": [
+                new_frame_left_points[0][0] + (new_frame_left_points[1][0] - new_frame_left_points[0][0]) / 2.5,
+                new_frame_left_points[0][1],
+            ],
+            "end": [
+                new_frame_left_points[0][0] + (new_frame_left_points[1][0] - new_frame_left_points[0][0]) / 2.5,
+                new_frame_left_points[0][1] + IDC_bot_arm_gap,
+            ],
+        }
+
+        configurator_points["IDC_arm_gap"] = {
+            "text": "IDC_arm_gap",
+            "start": [
+                (arm_start_x_left_side + arm_start_x_right_side) / 2,
+                arm_start_y_right_side + IDC_arm_lw / 2,
+            ],
+            "end": [
+                (arm_start_x_left_side + arm_start_x_right_side) / 2,
+                arm_start_y_right_side + IDC_arm_gap + IDC_arm_lw / 2,
+            ],
+        }
+
+        configurator_points["IDC_arm_lw"] = {
+            "text": "IDC_arm_lw",
+            "start": [
+                (arm_start_x_left_side + arm_start_x_right_side) / 2,
+                arm_start_y_right_side - IDC_arm_lw / 2,
+            ],
+            "end": [
+                (arm_start_x_left_side + arm_start_x_right_side) / 2,
+                arm_start_y_right_side + IDC_arm_lw / 2,
+            ],
+        }
+
+        configurator_points["No_of_arms"] = {
+            "text": "No_of_arms",
+            "start": [
+                ((arm_start_x_left_side + arm_start_x_right_side) / 2) + (arm_start_x_right_side / 10),
+                arm_start_y_right_side - IDC_arm_lw / 2,
+            ],
+            "end": [
+                ((arm_start_x_left_side + arm_start_x_right_side) / 2) + (arm_start_x_right_side / 10),
+                arm_start_y_right_side + No_of_arms * (IDC_arm_lw + IDC_arm_gap) - IDC_arm_gap,
+            ],
+        }
+
+        ####################################################################### Trim Arms
+        configurator_points["trim_arm_offset_left_side"] = {
+            "text": "trim_arm_offset_left_side",
+            "start": [
+                new_frame_left_points[1][0] + (frame_bot_left_width / 2),
+                new_frame_left_points[1][1],
+            ],
+            "end": [
+                new_frame_left_points[1][0] + (frame_bot_left_width / 2),
+                trim_arm_start_y_left_side,
+            ],
+        }
+
+        configurator_points["trim_arm_offset_right_side"] = {
+            "text": "trim_arm_offset_right_side",
+            "start": [
+                new_frame_right_points[1][0] - (frame_bot_right_width / 2),
+                new_frame_right_points[1][1],
+            ],
+            "end": [
+                new_frame_right_points[1][0] - (frame_bot_right_width / 2),
+                trim_arm_start_y_right_side,
+            ],
+        }
+
+        configurator_points["trim_arm_lw"] = {
+            "text": "trim_arm_lw",
+            "start": [
+                (arm_start_x_left_side + arm_start_x_right_side) / 2,
+                trim_arm_start_y_right_side,
+            ],
+            "end": [
+                (arm_start_x_left_side + arm_start_x_right_side) / 2,
+                trim_arm_start_y_right_side + trim_arm_lw,
+            ],
+        }
+
+        configurator_points["trim_arm_length_left_side"] = {
+            "text": "trim_arm_length_left_side",
+            "start": [
+                arm_start_x_left_side,
+                trim_arm_start_y_left_side,
+            ],
+            "end": [
+                arm_start_x_left_side + trim_arm_length_left_side,
+                trim_arm_start_y_left_side,
+            ],
+        }
+
+        configurator_points["trim_arm_length_right_side"] = {
+            "text": "trim_arm_length_right_side",
+            "start": [
+                arm_start_x_right_side,
+                trim_arm_start_y_right_side,
+            ],
+            "end": [
+                arm_start_x_right_side - trim_arm_length_right_side,
+                trim_arm_start_y_right_side,
+            ],
+        }
+
+        ####################################################################### Coupler Arm
+        configurator_points["coupler_gap"] = {
+            "text": "coupler_gap",
+            "start": [new_coupler_frame_points[4][0], new_coupler_frame_points[1][1]],
+            "end": [new_coupler_frame_points[4][0], (new_coupler_frame_points[1][1] + coupler_gap)],
+        }
+
+        configurator_points["coupler_lw"] = {
+            "text": "coupler_lw",
+            "start": [new_coupler_frame_points[4][0], (new_coupler_frame_points[1][1] + coupler_gap)],
+            "end": [new_coupler_frame_points[4][0], (new_coupler_frame_points[1][1] + coupler_gap + coupler_lw)],
+        }
+
+        configurator_points["left_coupler_frame_to_feed_distance"] = {
+            "text": "left_coupler_frame_to_feed_distance",
+            "start": [new_coupler_frame_points[1][0], new_coupler_frame_points[1][1]],
+            "end": [(new_coupler_frame_points[1][0] - left_coupler_frame_to_feed_distance), new_coupler_frame_points[1][1]],
+        }
+
+        ####################################################################### KID Number Text
+        # TODO
+        # configurator_points["text_size"] = { }
+        #
+        # configurator_points["text_x_offset"] = { }
+        #
+        # configurator_points["text_y_offset"] = { }
+
+        ####################################################################### Cutouts
+        configurator_points["cutout_bot_offset"] = {
+            "text": "cutout_bot_offset",
+            "start": [
+                new_frame_left_points[0][0] + (new_frame_left_points[1][0] - new_frame_left_points[0][0]) / 2.5,
+                cutout_start_height + cutout_bot_offset,
+            ],
+            "end": [new_frame_left_points[0][0] + (new_frame_left_points[1][0] - new_frame_left_points[0][0]) / 2.5, cutout_start_height],
+        }
+
+        configurator_points["cutout_left_offset"] = {
+            "text": "cutout_left_offset",
+            "start": [new_frame_left_points[4][0], new_frame_left_points[4][1]],
+            "end": [new_frame_left_points[4][0] - cutout_left_offset, new_frame_left_points[4][1]],
+        }
+        configurator_points["cutout_right_offset"] = {
+            "text": "cutout_right_offset",
+            "start": [new_frame_right_points[4][0], new_frame_right_points[4][1]],
+            "end": [new_frame_right_points[4][0] + cutout_right_offset, new_frame_right_points[4][1]],
+        }
+        configurator_points["cutout_top_offset"] = {
+            "text": "cutout_top_offset",
+            "start": [new_coupler_frame_points[4][0], (new_coupler_frame_points[1][1] + coupler_gap + coupler_lw)],
+            "end": [new_coupler_frame_points[4][0], (new_coupler_frame_points[1][1] + coupler_gap + coupler_lw + cutout_top_offset)],
+        }
+
+        configurator_points["SiO_stepdown_cutout_width"] = {
+            "text": "SiO_stepdown_cutout_width",
+            "start": [new_SiO_cutout_poly_points[0][0], new_SiO_cutout_poly_points[0][1]],
+            "end": [new_SiO_cutout_poly_points[7][0], new_SiO_cutout_poly_points[7][1]],
+        }
+
+        configurator_points["SiO_stepdown_cutout_height"] = {
+            "text": "SiO_stepdown_cutout_height",
+            "start": [new_SiO_cutout_poly_points[0][0], new_SiO_cutout_poly_points[0][1]],
+            "end": [new_SiO_cutout_poly_points[1][0], new_SiO_cutout_poly_points[1][1]],
+        }
+
+        configurator_points["SiN_membrane_stepdown_cutout_width"] = {
+            "text": "SiN_membrane_stepdown_cutout_width",
+            "start": [new_SiN_membrane_cutout_poly_points[0][0], new_SiN_membrane_cutout_poly_points[0][1]],
+            "end": [new_SiN_membrane_cutout_poly_points[7][0], new_SiN_membrane_cutout_poly_points[7][1]],
+        }
+
+        configurator_points["SiN_membrane_stepdown_cutout_height"] = {
+            "text": "SiN_membrane_stepdown_cutout_height",
+            "start": [new_SiN_membrane_cutout_poly_points[0][0], new_SiN_membrane_cutout_poly_points[0][1]],
+            "end": [new_SiN_membrane_cutout_poly_points[1][0], new_SiN_membrane_cutout_poly_points[1][1]],
+        }
+
+        return configurator_points
+
+    def add_Lo_pass_filters(
+        self, x, y, inner_ring_line_width, inner_ring_radius, init_angle, direction, Main_config_file_dict, return_configurator_points=False
+    ):
+        """Adds the low pass filter arms around the inner ring of the filter
+        bank.
 
         Parameters
         ----------
@@ -3970,6 +4542,10 @@ class SOUK_Functions:
             dictionary containing individual dictionarys of config settings.
             Requires "Lo_pass_filters".
 
+        KwArgs
+        ------
+        return_configurator_points=False
+            return a the points for use in the configurator.
         """
 
         config = Main_config_file_dict["Lo_pass_filters"]
@@ -4030,6 +4606,8 @@ class SOUK_Functions:
         ]
         offset_arc_cumsum_angles = np.cumsum(offset_arc_angles)
 
+        configurator_points = {}
+
         for i in range(5):
             angle = init_angle + sign * offset_arc_cumsum_angles[i]
             x_pos = x + (inner_ring_radius * cos(angle))
@@ -4049,6 +4627,24 @@ class SOUK_Functions:
             ]
 
             arm_geom = self.rotate_and_move_points_list(arm_geom_points, angle - pi / 2, x_pos, y_pos)
+
+            configurator_points[f"Lo_pass_arm{i+1}_linewidth"] = {
+                "text": f"Lo_pass_arm{i+1}_linewidth",
+                "start": [arm_geom[2][0], arm_geom[2][1]],
+                "end": [arm_geom[5][0], arm_geom[5][1]],
+            }
+
+            configurator_points[f"Lo_pass_arm{i+1}_length"] = {
+                "text": f"Lo_pass_arm{i+1}_length",
+                "start": [arm_geom[4][0], arm_geom[4][1]],
+                "end": [arm_geom[5][0], arm_geom[5][1]],
+            }
+
+            configurator_points[f"Lo_pass_arm{i+1}_height"] = {
+                "text": f"Lo_pass_arm{i+1}_height",
+                "start": [arm_geom[5][0], arm_geom[5][1]],
+                "end": [arm_geom[6][0], arm_geom[6][1]],
+            }
 
             arm = gdspy.Polygon(arm_geom, **self.Nb_Antenna)
             self.Main.add(arm)
@@ -4071,17 +4667,54 @@ class SOUK_Functions:
                     arm_heights[i] + arm_linewidths[i] + (inner_ring_line_width / 2),
                 ],
             ]
-
             via_geom = self.rotate_and_move_points_list(via_points, angle - pi / 2, x_pos, y_pos)
+
+            configurator_points[f"via_extend_length_{i+1}"] = {
+                "text": "via_extend_length",
+                "start": [via_geom[0][0] + (via_geom[3][0] - via_geom[0][0]) / 2, via_geom[0][1] + (via_geom[3][1] - via_geom[0][1]) / 2],
+                "end": [via_geom[3][0], via_geom[3][1]],
+            }
+
+            configurator_points[f"via_overlap_length_{i+1}"] = {
+                "text": "via_overlap_length",
+                "start": [via_geom[0][0] + (via_geom[3][0] - via_geom[0][0]) / 2, via_geom[0][1] + (via_geom[3][1] - via_geom[0][1]) / 2],
+                "end": [via_geom[0][0], via_geom[0][1]],
+            }
 
             via_box = gdspy.Polygon(via_geom, **self.SiN_dep)
             self.silicon_nitride_cutouts.add(via_box)
 
-        return
+        if not return_configurator_points:
+            return
 
-    def add_Hi_pass_filters(self, x, y, inner_ring_line_width, inner_ring_radius, init_angle, direction, Main_config_file_dict):
-        """
-        Adds the high pass filter arms around the inner ring of the filter bank.
+        configurator_points[f"Lo_pass_arm1_offset"] = {
+            "text": f"Lo_pass_arm1_offset",
+            "start": [x + inner_ring_radius * cos(init_angle), y + inner_ring_radius * sin(init_angle)],
+            "end": [
+                x + inner_ring_radius * cos(init_angle + (sign * offset_arc_cumsum_angles[0])),
+                y + inner_ring_radius * sin(init_angle + (sign * offset_arc_cumsum_angles[0])),
+            ],
+        }
+        for i in range(1, 5):
+            configurator_points[f"Lo_pass_arm{i+1}_offset"] = {
+                "text": f"Lo_pass_arm{i+1}_offset",
+                "start": [
+                    x + inner_ring_radius * cos(init_angle + (sign * offset_arc_cumsum_angles[i - 1])),
+                    y + inner_ring_radius * sin(init_angle + (sign * offset_arc_cumsum_angles[i - 1])),
+                ],
+                "end": [
+                    x + inner_ring_radius * cos(init_angle + (sign * offset_arc_cumsum_angles[i])),
+                    y + inner_ring_radius * sin(init_angle + (sign * offset_arc_cumsum_angles[i])),
+                ],
+            }
+
+        return configurator_points
+
+    def add_Hi_pass_filters(
+        self, x, y, inner_ring_line_width, inner_ring_radius, init_angle, direction, Main_config_file_dict, return_configurator_points=False
+    ):
+        """Adds the high pass filter arms around the inner ring of the filter
+        bank.
 
         Parameters
         ----------
@@ -4102,8 +4735,12 @@ class SOUK_Functions:
 
         Main_config_file_dict : dict
             dictionary containing individual dictionarys of config settings.
-            Requires "Lo_pass_filters".
+            Requires "Hi_pass_filters".
 
+        KwArgs
+        ------
+        return_configurator_points=False
+            return a the points for use in the configurator.
         """
 
         config = Main_config_file_dict["Hi_pass_filters"]
@@ -4164,6 +4801,8 @@ class SOUK_Functions:
         ]
         offset_arc_cumsum_angles = np.cumsum(offset_arc_angles)
 
+        configurator_points = {}
+
         for i in range(5):
             angle = init_angle + sign * offset_arc_cumsum_angles[i]
             x_pos = x + (inner_ring_radius * cos(angle))
@@ -4183,6 +4822,24 @@ class SOUK_Functions:
             ]
 
             arm_geom = self.rotate_and_move_points_list(arm_geom_points, angle - pi / 2, x_pos, y_pos)
+
+            configurator_points[f"Hi_pass_arm{i+1}_linewidth"] = {
+                "text": f"Hi_pass_arm{i+1}_linewidth",
+                "start": [arm_geom[2][0], arm_geom[2][1]],
+                "end": [arm_geom[5][0], arm_geom[5][1]],
+            }
+
+            configurator_points[f"Hi_pass_arm{i+1}_length"] = {
+                "text": f"Hi_pass_arm{i+1}_length",
+                "start": [arm_geom[4][0], arm_geom[4][1]],
+                "end": [arm_geom[5][0], arm_geom[5][1]],
+            }
+
+            configurator_points[f"Hi_pass_arm{i+1}_height"] = {
+                "text": f"Hi_pass_arm{i+1}_height",
+                "start": [arm_geom[5][0], arm_geom[5][1]],
+                "end": [arm_geom[6][0], arm_geom[6][1]],
+            }
 
             arm = gdspy.Polygon(arm_geom, **self.Nb_Antenna)
             self.Main.add(arm)
@@ -4208,19 +4865,63 @@ class SOUK_Functions:
 
             via_geom = self.rotate_and_move_points_list(via_points, angle - pi / 2, x_pos, y_pos)
 
+            configurator_points[f"via_extend_length_{i+1}"] = {
+                "text": "via_extend_length",
+                "start": [via_geom[0][0] + (via_geom[3][0] - via_geom[0][0]) / 2, via_geom[0][1] + (via_geom[3][1] - via_geom[0][1]) / 2],
+                "end": [via_geom[3][0], via_geom[3][1]],
+            }
+
+            configurator_points[f"via_overlap_length_{i+1}"] = {
+                "text": "via_overlap_length",
+                "start": [via_geom[0][0] + (via_geom[3][0] - via_geom[0][0]) / 2, via_geom[0][1] + (via_geom[3][1] - via_geom[0][1]) / 2],
+                "end": [via_geom[0][0], via_geom[0][1]],
+            }
+
             via_box = gdspy.Polygon(via_geom, **self.SiN_dep)
             self.silicon_nitride_cutouts.add(via_box)
 
-        return
+        if not return_configurator_points:
+            return
+
+        configurator_points[f"Hi_pass_arm1_offset"] = {
+            "text": f"Hi_pass_arm1_offset",
+            "start": [x + inner_ring_radius * cos(init_angle), y + inner_ring_radius * sin(init_angle)],
+            "end": [
+                x + inner_ring_radius * cos(init_angle + (sign * offset_arc_cumsum_angles[0])),
+                y + inner_ring_radius * sin(init_angle + (sign * offset_arc_cumsum_angles[0])),
+            ],
+        }
+        for i in range(1, 5):
+            configurator_points[f"Hi_pass_arm{i+1}_offset"] = {
+                "text": f"Hi_pass_arm{i+1}_offset",
+                "start": [
+                    x + inner_ring_radius * cos(init_angle + (sign * offset_arc_cumsum_angles[i - 1])),
+                    y + inner_ring_radius * sin(init_angle + (sign * offset_arc_cumsum_angles[i - 1])),
+                ],
+                "end": [
+                    x + inner_ring_radius * cos(init_angle + (sign * offset_arc_cumsum_angles[i])),
+                    y + inner_ring_radius * sin(init_angle + (sign * offset_arc_cumsum_angles[i])),
+                ],
+            }
+
+        return configurator_points
 
     def add_combiner_section_and_get_conect_point(
-        self, x, y, rot, outer_ring_conection_gap, outer_ring_linewidth, Main_config_file_dict, combiner_type="90GHZ", mirror_combiner=False
+        self,
+        x,
+        y,
+        rot,
+        outer_ring_conection_gap,
+        outer_ring_linewidth,
+        Main_config_file_dict,
+        combiner_type="90GHZ",
+        mirror_combiner=False,
+        return_configurator_points=False,
     ):
-        """
-        Adds the phase combiner to the outer ring of the filter bank. This is by
-        default the 90GHz or optionally the 150GHz. The specific geometries
-        dimensions is determined by the parameters in the config.
-        This function will return the coordinate of the conection point
+        """Adds the phase combiner to the outer ring of the filter bank. This
+        is by default the 90GHz or optionally the 150GHz. The specific
+        geometries dimensions is determined by the parameters in the config.
+        This function will return the coordinate of the conection point.
 
         Parameters
         ----------
@@ -4258,13 +4959,14 @@ class SOUK_Functions:
             perpedicular to the outer ring of the filter bank. The default is
             False or can be True.
 
+        return_configurator_points=False
+            return a the points for use in the configurator.
+
         Returns
         -------
-
         points_to_conect_kids_to : list
             list of [x,y] coordinate for the conection point which connects to a
             KID.
-
         """
 
         if combiner_type == "90GHZ":
@@ -4317,8 +5019,10 @@ class SOUK_Functions:
         first_section_top.translate(x, y)
         first_section_bot.rotate(rot, (0, 0))
         first_section_bot.translate(x, y)
-        self.Main.add(first_section_top)
-        self.Main.add(first_section_bot)
+        self.make_flexpath_into_polygons_and_add_to_main(first_section_top, self.Nb_Antenna["layer"], self.Nb_Antenna["datatype"])
+        self.make_flexpath_into_polygons_and_add_to_main(first_section_bot, self.Nb_Antenna["layer"], self.Nb_Antenna["datatype"])
+        # self.Main.add(first_section_top)
+        # self.Main.add(first_section_bot)
 
         # Making second section
         second_section_linewidth = config["second_section_linewidth"]  # 4.5
@@ -4402,7 +5106,8 @@ class SOUK_Functions:
 
         second_section_top.rotate(rot, (0, 0))
         second_section_top.translate(x, y)
-        self.Main.add(second_section_top)
+        self.make_flexpath_into_polygons_and_add_to_main(second_section_top, self.Nb_Antenna["layer"], self.Nb_Antenna["datatype"])
+        # self.Main.add(second_section_top)
 
         second_section_bot_width1 = config["second_section_bot_width1"]  # 24.25
         second_section_bot_height1 = config["second_section_bot_height1"]  # 15.5
@@ -4483,9 +5188,10 @@ class SOUK_Functions:
 
         second_section_bot.rotate(rot, (0, 0))
         second_section_bot.translate(x, y)
-        self.Main.add(second_section_bot)
+        self.make_flexpath_into_polygons_and_add_to_main(second_section_bot, self.Nb_Antenna["layer"], self.Nb_Antenna["datatype"])
+        # self.Main.add(second_section_bot)
 
-        start_of_second_section_vertical_linewidth = 3.5
+        start_of_second_section_vertical_linewidth = config["start_of_second_section_vertical_linewidth"]  # 3.5
         start_of_second_section_vertical_points = [
             [
                 first_section_top_points[-1][0] - first_linewidth / 2 + start_of_second_section_vertical_linewidth / 2,
@@ -4508,11 +5214,14 @@ class SOUK_Functions:
 
         start_of_second_section_vertical.rotate(rot, (0, 0))
         start_of_second_section_vertical.translate(x, y)
-        self.Main.add(start_of_second_section_vertical)
+        self.make_flexpath_into_polygons_and_add_to_main(
+            start_of_second_section_vertical, self.Nb_Antenna["layer"], self.Nb_Antenna["datatype"]
+        )
+        # self.Main.add(start_of_second_section_vertical)
 
         third_section_linewidth = config["third_section_linewidth"]  # 3
 
-        end_of_second_section_vertical_linewidth = 6
+        end_of_second_section_vertical_linewidth = config["end_of_second_section_vertical_linewidth"]  # 6
 
         end_of_second_section_vertical_points = [
             [second_section_top_points[-1][0], second_section_top_points[-1][1] + second_section_linewidth / 2],
@@ -4594,20 +5303,21 @@ class SOUK_Functions:
 
         third_section.rotate(rot, (0, 0))
         third_section.translate(x, y)
-        self.Main.add(third_section)
+        self.make_flexpath_into_polygons_and_add_to_main(third_section, self.Nb_Antenna["layer"], self.Nb_Antenna["datatype"])
+        # self.Main.add(third_section)
 
         conection_to_kid_path_linewidth = config["conection_to_kid_path_linewidth"]  # 5
         conection_to_kid_path_start_piece_length = config["conection_to_kid_path_start_piece_length"]  # 10
-        conection_to_kid_path_start_path_points = [
-            [
-                third_section_points[5][0] - third_section_linewidth / 2,
-                third_section_points[5][1] + third_section_linewidth / 2 - conection_to_kid_path_linewidth / 2,
-            ],
-            [
-                third_section_points[5][0] - third_section_linewidth / 2 + conection_to_kid_path_start_piece_length,
-                third_section_points[5][1] + third_section_linewidth / 2 - conection_to_kid_path_linewidth / 2,
-            ],
-        ]
+        # conection_to_kid_path_start_path_points = [
+        #     [
+        #         third_section_points[5][0] - third_section_linewidth / 2,
+        #         third_section_points[5][1] + third_section_linewidth / 2 - conection_to_kid_path_linewidth / 2,
+        #     ],
+        #     [
+        #         third_section_points[5][0] - third_section_linewidth / 2 + conection_to_kid_path_start_piece_length,
+        #         third_section_points[5][1] + third_section_linewidth / 2 - conection_to_kid_path_linewidth / 2,
+        #     ],
+        # ]
 
         conection_to_kid_path_start_path_points = [
             [
@@ -4632,7 +5342,8 @@ class SOUK_Functions:
 
         conection_to_kid_path_start.rotate(rot, (0, 0))
         conection_to_kid_path_start.translate(x, y)
-        self.Main.add(conection_to_kid_path_start)
+        self.make_flexpath_into_polygons_and_add_to_main(conection_to_kid_path_start, self.Nb_Antenna["layer"], self.Nb_Antenna["datatype"])
+        # self.Main.add(conection_to_kid_path_start)
 
         if mirror_combiner:
             points_to_conect_kids_to = self.rotate_and_move_single_point(mirrored_conection_to_kid_path_start_path_points[-1], rot, x, y)
@@ -4681,13 +5392,14 @@ class SOUK_Functions:
         meander.rotate(rot, (0, 0))
         meander.translate(x, y)
 
-        meander_poly_points_flexpath = self.get_polys_from_flexpath(
-            meander
-        )  # gets the polygon points of the outer cpw flex path via function and
-
-        for i in range(len(meander_poly_points_flexpath)):
-            meander_path_polygon = gdspy.Polygon(meander_poly_points_flexpath[i], **self.Aluminium)
-            self.Main.add(meander_path_polygon)
+        self.make_flexpath_into_polygons_and_add_to_main(meander, self.Aluminium["layer"], self.Aluminium["datatype"])
+        # meander_poly_points_flexpath = self.get_polys_from_flexpath(
+        #     meander
+        # )  # gets the polygon points of the outer cpw flex path via function and
+        #
+        # for i in range(len(meander_poly_points_flexpath)):
+        #     meander_path_polygon = gdspy.Polygon(meander_poly_points_flexpath[i], **self.Aluminium)
+        #     self.Main.add(meander_path_polygon)
 
         meander_to_frame_box_size = config["meander_to_frame_box_size"]
 
@@ -4731,7 +5443,8 @@ class SOUK_Functions:
 
         connect_meander_to_frame.rotate(rot, (0, 0))
         connect_meander_to_frame.translate(x, y)
-        self.Main.add(connect_meander_to_frame)
+        self.make_flexpath_into_polygons_and_add_to_main(connect_meander_to_frame, self.Nb_Antenna["layer"], self.Nb_Antenna["datatype"])
+        # self.Main.add(connect_meander_to_frame)
 
         # meander_fork
         meander_last_fork_wdith = config["meander_last_fork_wdith"]  # 5
@@ -4767,7 +5480,8 @@ class SOUK_Functions:
 
         meander_last_fork.rotate(rot, (0, 0))
         meander_last_fork.translate(x, y)
-        self.Main.add(meander_last_fork)
+        self.make_flexpath_into_polygons_and_add_to_main(meander_last_fork, self.Nb_Antenna["layer"], self.Nb_Antenna["datatype"])
+        # self.Main.add(meander_last_fork)
 
         meander_last_fork_top_box_size = config["meander_last_fork_top_box_size"]
 
@@ -4808,14 +5522,743 @@ class SOUK_Functions:
         meander_last_fork_via_box.translate(x, y)
         self.silicon_nitride_cutouts.add(meander_last_fork_via_box)
 
-        return points_to_conect_kids_to
+        if not return_configurator_points:
+            return points_to_conect_kids_to, None
 
-    def add_filter_bank_ring_overlap_and_get_conections(self, x, y, ant_center_x, ant_center_y, overlap_no, rot, Main_config_file_dict):
-        """
-        Adds a ring overlap conection to bridge the inner and outer rings over one
-        another. This function will return the conection points where the inner and
-        outer rings should connect to.
+        configurator_points = {}
 
+        # --------------------------------------------------------------------- First Section
+
+        start = self.rotate_and_move_single_point(
+            [first_section_top_points[0][0], first_section_top_points[0][1] - (first_linewidth / 2)], rot, x, y
+        )
+        end = self.rotate_and_move_single_point(
+            [first_section_top_points[0][0], first_section_top_points[0][1] + (first_linewidth / 2)], rot, x, y
+        )
+        configurator_points["first_linewidth"] = {
+            "text": "first_linewidth",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point(
+            [first_section_top_points[1][0] - distance_from_outer_ring, first_section_top_points[1][1]], rot, x, y
+        )
+        end = self.rotate_and_move_single_point([first_section_top_points[1][0], first_section_top_points[1][1]], rot, x, y)
+        configurator_points["distance_from_outer_ring"] = {
+            "text": "distance_from_outer_ring",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([first_section_top_points[2][0], first_section_top_points[2][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([first_section_bot_points[2][0], first_section_bot_points[2][1]], rot, x, y)
+        configurator_points["first_section_height"] = {
+            "text": "first_section_height",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([first_section_top_points[2][0], first_section_top_points[2][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([first_section_top_points[3][0], first_section_top_points[3][1]], rot, x, y)
+        configurator_points["first_section_width"] = {
+            "text": "first_section_width",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([first_section_top_points[3][0], first_section_top_points[3][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([first_section_top_points[4][0], first_section_top_points[4][1]], rot, x, y)
+        configurator_points["first_section_back_height"] = {
+            "text": "first_section_back_height",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        # --------------------------------------------------------------------- Second Section Top
+        start = self.rotate_and_move_single_point(
+            [
+                second_section_top_points[0][0] + (second_section_linewidth / 2),
+                second_section_top_points[0][1] - (second_section_linewidth / 2),
+            ],
+            rot,
+            x,
+            y,
+        )
+        end = self.rotate_and_move_single_point(
+            [
+                second_section_top_points[0][0] + (second_section_linewidth / 2),
+                second_section_top_points[0][1] + (second_section_linewidth / 2),
+            ],
+            rot,
+            x,
+            y,
+        )
+
+        configurator_points["second_section_linewidth_top"] = {
+            "text": "second_section_linewidth",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([second_section_top_points[0][0], second_section_top_points[0][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([second_section_top_points[1][0], second_section_top_points[1][1]], rot, x, y)
+        configurator_points["second_section_top_width1"] = {
+            "text": "second_section_top_width1",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([second_section_top_points[1][0], second_section_top_points[1][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([second_section_top_points[2][0], second_section_top_points[2][1]], rot, x, y)
+        configurator_points["second_section_top_height1"] = {
+            "text": "second_section_top_height1",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([second_section_top_points[2][0], second_section_top_points[2][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([second_section_top_points[3][0], second_section_top_points[3][1]], rot, x, y)
+        configurator_points["second_section_top_width2"] = {
+            "text": "second_section_top_width2",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([second_section_top_points[3][0], second_section_top_points[3][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([second_section_top_points[4][0], second_section_top_points[4][1]], rot, x, y)
+        configurator_points["second_section_top_height2"] = {
+            "text": "second_section_top_height2",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([second_section_top_points[4][0], second_section_top_points[4][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([second_section_top_points[5][0], second_section_top_points[5][1]], rot, x, y)
+        configurator_points["second_section_top_width3"] = {
+            "text": "second_section_top_width3",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([second_section_top_points[5][0], second_section_top_points[5][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([second_section_top_points[6][0], second_section_top_points[6][1]], rot, x, y)
+        configurator_points["second_section_top_height3"] = {
+            "text": "second_section_top_height3",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([second_section_top_points[6][0], second_section_top_points[6][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([second_section_top_points[7][0], second_section_top_points[7][1]], rot, x, y)
+        configurator_points["second_section_top_width4"] = {
+            "text": "second_section_top_width4",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([second_section_top_points[7][0], second_section_top_points[7][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([second_section_top_points[8][0], second_section_top_points[8][1]], rot, x, y)
+        configurator_points["second_section_top_height4"] = {
+            "text": "second_section_top_height4",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([second_section_top_points[8][0], second_section_top_points[8][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([second_section_top_points[9][0], second_section_top_points[9][1]], rot, x, y)
+        configurator_points["second_section_top_width5"] = {
+            "text": "second_section_top_width5",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        # --------------------------------------------------------------------- Second Section bot
+        start = self.rotate_and_move_single_point(
+            [
+                second_section_bot_points[0][0] + (second_section_linewidth / 2),
+                second_section_bot_points[0][1] - (second_section_linewidth / 2),
+            ],
+            rot,
+            x,
+            y,
+        )
+        end = self.rotate_and_move_single_point(
+            [
+                second_section_bot_points[0][0] + (second_section_linewidth / 2),
+                second_section_bot_points[0][1] + (second_section_linewidth / 2),
+            ],
+            rot,
+            x,
+            y,
+        )
+        configurator_points["second_section_linewidth_bot"] = {
+            "text": "second_section_linewidth",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([second_section_bot_points[0][0], second_section_bot_points[0][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([second_section_bot_points[1][0], second_section_bot_points[1][1]], rot, x, y)
+        configurator_points["second_section_bot_width1"] = {
+            "text": "second_section_bot_width1",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([second_section_bot_points[1][0], second_section_bot_points[1][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([second_section_bot_points[2][0], second_section_bot_points[2][1]], rot, x, y)
+        configurator_points["second_section_bot_height1"] = {
+            "text": "second_section_bot_height1",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([second_section_bot_points[2][0], second_section_bot_points[2][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([second_section_bot_points[3][0], second_section_bot_points[3][1]], rot, x, y)
+        configurator_points["second_section_bot_width2"] = {
+            "text": "second_section_bot_width2",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([second_section_bot_points[3][0], second_section_bot_points[3][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([second_section_bot_points[4][0], second_section_bot_points[4][1]], rot, x, y)
+        configurator_points["second_section_bot_height2"] = {
+            "text": "second_section_bot_height2",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([second_section_bot_points[4][0], second_section_bot_points[4][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([second_section_bot_points[5][0], second_section_bot_points[5][1]], rot, x, y)
+        configurator_points["second_section_bot_width3"] = {
+            "text": "second_section_bot_width3",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([second_section_bot_points[5][0], second_section_bot_points[5][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([second_section_bot_points[6][0], second_section_bot_points[6][1]], rot, x, y)
+        configurator_points["second_section_bot_height3"] = {
+            "text": "second_section_bot_height3",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([second_section_bot_points[6][0], second_section_bot_points[6][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([second_section_bot_points[7][0], second_section_bot_points[7][1]], rot, x, y)
+        configurator_points["second_section_bot_width4"] = {
+            "text": "second_section_bot_width4",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([second_section_bot_points[7][0], second_section_bot_points[7][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([second_section_bot_points[8][0], second_section_bot_points[8][1]], rot, x, y)
+        configurator_points["second_section_bot_height4"] = {
+            "text": "second_section_bot_height4",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([second_section_bot_points[8][0], second_section_bot_points[8][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([second_section_bot_points[9][0], second_section_bot_points[9][1]], rot, x, y)
+        configurator_points["second_section_bot_width5"] = {
+            "text": "second_section_bot_width5",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        # --------------------------------------------------------------------- Second Section Vertical Line
+        start = self.rotate_and_move_single_point(
+            [
+                start_of_second_section_vertical_points[0][0] + (start_of_second_section_vertical_linewidth / 2),
+                start_of_second_section_vertical_points[0][1],
+            ],
+            rot,
+            x,
+            y,
+        )
+        end = self.rotate_and_move_single_point(
+            [
+                start_of_second_section_vertical_points[0][0] - (start_of_second_section_vertical_linewidth / 2),
+                start_of_second_section_vertical_points[0][1],
+            ],
+            rot,
+            x,
+            y,
+        )
+        configurator_points["start_of_second_section_vertical_linewidth"] = {
+            "text": "start_of_second_section_vertical_linewidth",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point(
+            [
+                end_of_second_section_vertical_points[1][0] - end_of_second_section_vertical_linewidth,
+                end_of_second_section_vertical_points[1][1],
+            ],
+            rot,
+            x,
+            y,
+        )
+        end = self.rotate_and_move_single_point(
+            [end_of_second_section_vertical_points[1][0], end_of_second_section_vertical_points[1][1]], rot, x, y
+        )
+        configurator_points["end_of_second_section_vertical_linewidth"] = {
+            "text": "end_of_second_section_vertical_linewidth",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        # --------------------------------------------------------------------- Third Section Top
+        start = self.rotate_and_move_single_point(
+            [third_section_points[0][0], third_section_points[0][1] - (third_section_linewidth / 2)], rot, x, y
+        )
+        end = self.rotate_and_move_single_point(
+            [third_section_points[0][0], third_section_points[0][1] + (third_section_linewidth / 2)], rot, x, y
+        )
+        configurator_points["third_section_linewidth_top"] = {
+            "text": "third_section_linewidth",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([third_section_points[0][0], third_section_points[0][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([third_section_points[1][0], third_section_points[1][1]], rot, x, y)
+        configurator_points["third_section_width1_top"] = {
+            "text": "third_section_width1",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([third_section_points[1][0], third_section_points[1][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([third_section_points[2][0], third_section_points[2][1]], rot, x, y)
+        configurator_points["third_section_height1_top"] = {
+            "text": "third_section_height1",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([third_section_points[2][0], third_section_points[2][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([third_section_points[3][0], third_section_points[3][1]], rot, x, y)
+        configurator_points["third_section_width2_top"] = {
+            "text": "third_section_width2",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([third_section_points[3][0], third_section_points[3][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([third_section_points[4][0], third_section_points[4][1]], rot, x, y)
+        configurator_points["third_section_height2_top"] = {
+            "text": "third_section_height2",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([third_section_points[4][0], third_section_points[4][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([third_section_points[5][0], third_section_points[5][1]], rot, x, y)
+        configurator_points["third_section_width3_top"] = {
+            "text": "third_section_width3",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        # --------------------------------------------------------------------- Third Section Bot
+        start = self.rotate_and_move_single_point(
+            [third_section_points[11][0], third_section_points[11][1] - (third_section_linewidth / 2)], rot, x, y
+        )
+        end = self.rotate_and_move_single_point(
+            [third_section_points[11][0], third_section_points[11][1] + (third_section_linewidth / 2)], rot, x, y
+        )
+        configurator_points["third_section_linewidth_bot"] = {
+            "text": "third_section_linewidth",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([third_section_points[11][0], third_section_points[11][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([third_section_points[10][0], third_section_points[10][1]], rot, x, y)
+        configurator_points["third_section_width1_bot"] = {
+            "text": "third_section_width1",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([third_section_points[10][0], third_section_points[10][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([third_section_points[9][0], third_section_points[9][1]], rot, x, y)
+        configurator_points["third_section_height1_bot"] = {
+            "text": "third_section_height1",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([third_section_points[9][0], third_section_points[9][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([third_section_points[8][0], third_section_points[8][1]], rot, x, y)
+        configurator_points["third_section_width2_bot"] = {
+            "text": "third_section_width2",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([third_section_points[8][0], third_section_points[8][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([third_section_points[7][0], third_section_points[7][1]], rot, x, y)
+        configurator_points["third_section_height2_bot"] = {
+            "text": "third_section_height2",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([third_section_points[7][0], third_section_points[7][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([third_section_points[6][0], third_section_points[6][1]], rot, x, y)
+        configurator_points["third_section_width3_bot"] = {
+            "text": "third_section_width3",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        # --------------------------------------------------------------------- Connection To Kid Path
+        start = self.rotate_and_move_single_point(
+            [
+                conection_to_kid_path_start_path_points[0][0] - (conection_to_kid_path_linewidth / 2),
+                conection_to_kid_path_start_path_points[0][1],
+            ],
+            rot,
+            x,
+            y,
+        )
+        end = self.rotate_and_move_single_point(
+            [
+                conection_to_kid_path_start_path_points[0][0] + (conection_to_kid_path_linewidth / 2),
+                conection_to_kid_path_start_path_points[0][1],
+            ],
+            rot,
+            x,
+            y,
+        )
+        configurator_points["conection_to_kid_path_linewidth"] = {
+            "text": "conection_to_kid_path_linewidth",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point(
+            [conection_to_kid_path_start_path_points[0][0], conection_to_kid_path_start_path_points[0][1]], rot, x, y
+        )
+        end = self.rotate_and_move_single_point(
+            [conection_to_kid_path_start_path_points[1][0], conection_to_kid_path_start_path_points[1][1]], rot, x, y
+        )
+        configurator_points["conection_to_kid_path_start_piece_length"] = {
+            "text": "conection_to_kid_path_start_piece_length",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        # --------------------------------------------------------------------- Meander Section
+        start = self.rotate_and_move_single_point(
+            [meander_points[3][0] - (meander_linewidth / 2), meander_points[3][1] + (meander_linewidth / 2)], rot, x, y
+        )
+        end = self.rotate_and_move_single_point(
+            [meander_points[3][0] + (meander_linewidth / 2), meander_points[3][1] + (meander_linewidth / 2)], rot, x, y
+        )
+        configurator_points["meander_linewidth"] = {
+            "text": "meander_linewidth",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([meander_points[2][0], meander_points[2][1] - (meander_linewidth / 2)], rot, x, y)
+        end = self.rotate_and_move_single_point([meander_points[3][0], meander_points[3][1] + (meander_linewidth / 2)], rot, x, y)
+        configurator_points["meander_height"] = {
+            "text": "meander_height",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([meander_points[0][0] - (meander_linewidth / 2), meander_points[0][1]], rot, x, y)
+        end = self.rotate_and_move_single_point(
+            [meander_points[0][0] - (meander_linewidth / 2) - meander_initial_gap, meander_points[0][1]], rot, x, y
+        )
+        configurator_points["meander_initial_gap"] = {
+            "text": "meander_initial_gap",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([meander_points[0][0], meander_points[0][1] + (meander_linewidth)], rot, x, y)
+        end = self.rotate_and_move_single_point([meander_points[3][0], meander_points[3][1] + (meander_linewidth)], rot, x, y)
+        configurator_points["meander_gap_spacing"] = {
+            "text": "meander_gap_spacing",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([meander_points[1][0], meander_points[1][1] - 4 * (meander_linewidth)], rot, x, y)
+        end = self.rotate_and_move_single_point([meander_points[-2][0], meander_points[-2][1] - 4 * (meander_linewidth)], rot, x, y)
+        configurator_points["no_of_full_straights"] = {
+            "text": "no_of_full_straights",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([meander_points[-2][0], meander_points[-2][1] - (meander_linewidth / 2)], rot, x, y)
+        end = self.rotate_and_move_single_point([meander_points[-3][0], meander_points[-3][1] - (meander_linewidth / 2)], rot, x, y)
+        configurator_points["meander_final_gap"] = {
+            "text": "meander_final_gap",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        # --------------------------------------------------------------------- Meander To Frame Conenct Box
+        start = self.rotate_and_move_single_point(
+            [meander_points[-1][0] - (meander_to_frame_box_size / 2), meander_points[-1][1] - (meander_linewidth / 2)], rot, x, y
+        )
+        end = self.rotate_and_move_single_point(
+            [meander_points[-1][0] + (meander_to_frame_box_size / 2), meander_points[-1][1] - (meander_linewidth / 2)], rot, x, y
+        )
+        configurator_points["meander_to_frame_box_size_bot"] = {
+            "text": "meander_to_frame_box_size",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point(
+            [
+                meander_points[-1][0] - (meander_to_frame_box_size / 2),
+                meander_points[-1][1] - (meander_to_frame_box_size / 2) + (meander_linewidth / 2),
+            ],
+            rot,
+            x,
+            y,
+        )
+        end = self.rotate_and_move_single_point(
+            [
+                meander_points[-1][0] - (meander_to_frame_box_size / 2),
+                meander_points[-1][1] + (meander_to_frame_box_size / 2) + (meander_linewidth / 2),
+            ],
+            rot,
+            x,
+            y,
+        )
+        configurator_points["meander_to_frame_box_size_side"] = {
+            "text": "meander_to_frame_box_size",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        # --------------------------------------------------------------------- Meander To Frame Conenct Path
+        start = self.rotate_and_move_single_point(
+            [
+                connect_meander_to_frame_points[1][0] + (meander_conect_linewidth / 2),
+                connect_meander_to_frame_points[1][1] - (meander_conect_linewidth / 2),
+            ],
+            rot,
+            x,
+            y,
+        )
+        end = self.rotate_and_move_single_point(
+            [
+                connect_meander_to_frame_points[1][0] + (meander_conect_linewidth / 2),
+                connect_meander_to_frame_points[1][1] + (meander_conect_linewidth / 2),
+            ],
+            rot,
+            x,
+            y,
+        )
+        configurator_points["meander_conect_linewidth"] = {
+            "text": "meander_conect_linewidth",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([connect_meander_to_frame_points[1][0], connect_meander_to_frame_points[1][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([connect_meander_to_frame_points[2][0], connect_meander_to_frame_points[2][1]], rot, x, y)
+        configurator_points["meander_conect_bot_width"] = {
+            "text": "meander_conect_bot_width",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([connect_meander_to_frame_points[2][0], connect_meander_to_frame_points[2][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([connect_meander_to_frame_points[3][0], connect_meander_to_frame_points[3][1]], rot, x, y)
+        configurator_points["meander_conect_right_height"] = {
+            "text": "meander_conect_right_height",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point([connect_meander_to_frame_points[3][0], connect_meander_to_frame_points[3][1]], rot, x, y)
+        end = self.rotate_and_move_single_point([connect_meander_to_frame_points[4][0], connect_meander_to_frame_points[4][1]], rot, x, y)
+        configurator_points["meander_conect_final_width"] = {
+            "text": "meander_conect_final_width",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        # --------------------------------------------------------------------- Meander To Frame Conenct Fork
+        start = self.rotate_and_move_single_point([meander_last_fork_points[0][0], meander_last_fork_points[0][1]], rot, x, y)
+        end = self.rotate_and_move_single_point(
+            [meander_last_fork_points[1][0] + (meander_last_fork_linewdith / 2), meander_last_fork_points[1][1]], rot, x, y
+        )
+        configurator_points["meander_last_fork_wdith"] = {
+            "text": "meander_last_fork_wdith",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point(
+            [meander_last_fork_points[1][0], meander_last_fork_points[1][1] + (meander_last_fork_linewdith / 2)], rot, x, y
+        )
+        end = self.rotate_and_move_single_point([meander_last_fork_points[2][0], meander_last_fork_points[2][1]], rot, x, y)
+        configurator_points["meander_last_fork_height"] = {
+            "text": "meander_last_fork_height",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point(
+            [meander_last_fork_points[0][0], meander_last_fork_points[0][1] - (meander_last_fork_linewdith / 2)], rot, x, y
+        )
+        end = self.rotate_and_move_single_point(
+            [meander_last_fork_points[0][0], meander_last_fork_points[0][1] + (meander_last_fork_linewdith / 2)], rot, x, y
+        )
+        configurator_points["meander_last_fork_linewdith"] = {
+            "text": "meander_last_fork_linewdith",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point(
+            [
+                connect_meander_to_frame_points[2][0] - (meander_conect_linewidth / 2) - (meander_last_fork_wdith / 2),
+                connect_meander_to_frame_points[2][1] + (meander_conect_linewidth / 2),
+            ],
+            rot,
+            x,
+            y,
+        )
+        end = self.rotate_and_move_single_point(
+            [
+                meander_last_fork_points[0][0] - (meander_last_fork_wdith / 2),
+                meander_last_fork_points[0][1] - (meander_last_fork_linewdith / 2),
+            ],
+            rot,
+            x,
+            y,
+        )
+        configurator_points["meander_last_fork_start_height"] = {
+            "text": "meander_last_fork_start_height",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        # --------------------------------------------------------------------- Meander To Frame Conenct Fork Via Box
+        start = self.rotate_and_move_single_point(
+            [meander_last_fork_points[-1][0] - (meander_last_fork_top_box_size / 2), meander_last_fork_points[-1][1]], rot, x, y
+        )
+        end = self.rotate_and_move_single_point(
+            [meander_last_fork_points[-1][0] + (meander_last_fork_top_box_size / 2), meander_last_fork_points[-1][1]], rot, x, y
+        )
+        configurator_points["meander_last_fork_top_box_size_bot"] = {
+            "text": "meander_last_fork_top_box_size",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point(
+            [meander_last_fork_points[-1][0] - (meander_last_fork_top_box_size / 2), meander_last_fork_points[-1][1]], rot, x, y
+        )
+        end = self.rotate_and_move_single_point(
+            [
+                meander_last_fork_points[-1][0] - (meander_last_fork_top_box_size / 2),
+                meander_last_fork_points[-1][1] + (meander_last_fork_top_box_size),
+            ],
+            rot,
+            x,
+            y,
+        )
+        configurator_points["meander_last_fork_top_box_size_side"] = {
+            "text": "meander_last_fork_top_box_size",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point(
+            [
+                meander_last_fork_points[-1][0] - (meander_last_fork_via_box_size_x / 2),
+                meander_last_fork_points[-1][1] + meander_last_fork_via_box_y_offset + meander_last_fork_via_box_size_y,
+            ],
+            rot,
+            x,
+            y,
+        )
+        end = self.rotate_and_move_single_point(
+            [
+                meander_last_fork_points[-1][0] + (meander_last_fork_via_box_size_x / 2),
+                meander_last_fork_points[-1][1] + meander_last_fork_via_box_y_offset + meander_last_fork_via_box_size_y,
+            ],
+            rot,
+            x,
+            y,
+        )
+        configurator_points["meander_last_fork_via_box_size_x"] = {
+            "text": "meander_last_fork_via_box_size_x",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point(
+            [
+                meander_last_fork_points[-1][0] + (meander_last_fork_via_box_size_x / 2),
+                meander_last_fork_points[-1][1] + meander_last_fork_via_box_y_offset,
+            ],
+            rot,
+            x,
+            y,
+        )
+        end = self.rotate_and_move_single_point(
+            [
+                meander_last_fork_points[-1][0] + (meander_last_fork_via_box_size_x / 2),
+                meander_last_fork_points[-1][1] + meander_last_fork_via_box_y_offset + meander_last_fork_via_box_size_y,
+            ],
+            rot,
+            x,
+            y,
+        )
+        configurator_points["meander_last_fork_via_box_size_y"] = {
+            "text": "meander_last_fork_via_box_size_y",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        start = self.rotate_and_move_single_point(
+            [meander_last_fork_points[-1][0] + (meander_last_fork_top_box_size / 2), meander_last_fork_points[-1][1]], rot, x, y
+        )
+        end = self.rotate_and_move_single_point(
+            [
+                meander_last_fork_points[-1][0] + (meander_last_fork_top_box_size / 2),
+                meander_last_fork_points[-1][1] + meander_last_fork_via_box_y_offset,
+            ],
+            rot,
+            x,
+            y,
+        )
+        configurator_points["meander_last_fork_via_box_y_offset"] = {
+            "text": "meander_last_fork_via_box_y_offset",
+            "start": [start[0], start[1]],
+            "end": [end[0], end[1]],
+        }
+
+        return points_to_conect_kids_to, configurator_points
+
+    def add_filter_bank_ring_overlap_and_get_conections(
+        self, x, y, ant_center_x, ant_center_y, overlap_no, rot, Main_config_file_dict, return_configurator_points=False
+    ):
+        """Adds a ring overlap conection to bridge the inner and outer rings
+        over one another. This function will return the conection points where
+        the inner and outer rings should connect to.
 
         Parameters
         ----------
@@ -4842,6 +6285,10 @@ class SOUK_Functions:
             dictionary containing individual dictionarys of config settings.
             Requires "filter_bank_ring_overlap".
 
+        KwArgs
+        ------
+        return_configurator_points=False
+            return a the points for use in the configurator.
         Returns
         -------
         conections_dict : dict
@@ -4851,7 +6298,6 @@ class SOUK_Functions:
 
             This dict has keys: **'inner_conect_0', 'inner_conect_1',
             'outer_conect_0', 'outer_conect_1'**.
-
         """
 
         config = Main_config_file_dict["filter_bank_ring_overlap"]
@@ -5054,15 +6500,156 @@ class SOUK_Functions:
         full_conect = gdspy.Polygon(full_conect_poly_points, **self.Nb_Antenna)
         self.Main.add(full_conect)
 
-        return conections_dict
+        if not return_configurator_points:
+            return conections_dict
+
+        configurator_points = {}
+
+        configurator_points["outer_box_width"] = {
+            "text": "outer_box_width",
+            "start": [x - (outer_box_width / 2), y + (outer_box_height / 2)],
+            "end": [x + (outer_box_width / 2), y + (outer_box_height / 2)],
+        }
+
+        configurator_points["outer_box_height"] = {
+            "text": "outer_box_height",
+            "start": [x - (outer_box_width / 2), y + (outer_box_height / 2)],
+            "end": [x - (outer_box_width / 2), y - (outer_box_height / 2)],
+        }
+
+        configurator_points["outer_box_inner_cutout_width"] = {
+            "text": "outer_box_inner_cutout_width",
+            "start": [outer_box_inner_cutout_points[2][0], outer_box_inner_cutout_points[2][1]],
+            "end": [outer_box_inner_cutout_points[1][0], outer_box_inner_cutout_points[1][1]],
+        }
+
+        configurator_points["outer_box_inner_cutout_height"] = {
+            "text": "outer_box_inner_cutout_height",
+            "start": [outer_box_inner_cutout_points[0][0], outer_box_inner_cutout_points[0][1]],
+            "end": [outer_box_inner_cutout_points[1][0], outer_box_inner_cutout_points[1][1]],
+        }
+
+        configurator_points["linewidth"] = {
+            "text": "linewidth",
+            "start": [full_conect_poly_points[3][0], (full_conect_poly_points[3][1] + full_conect_poly_points[4][1]) / 2],
+            "end": [full_conect_poly_points[6][0], (full_conect_poly_points[6][1] + full_conect_poly_points[5][1]) / 2],
+        }
+
+        configurator_points["linewidth_B"] = {
+            "text": "linewidth",
+            "start": [(half_conect_poly_points_left[4][0] + half_conect_poly_points_left[3][0]) / 2, half_conect_poly_points_left[3][1]],
+            "end": [(half_conect_poly_points_left[5][0] + half_conect_poly_points_left[6][0]) / 2, half_conect_poly_points_left[5][1]],
+        }
+
+        configurator_points["half_conect_taper_extra_height"] = {
+            "text": "half_conect_taper_extra_height",
+            "start": [half_conect_poly_points_left[2][0], half_conect_poly_points_left[2][1]],
+            "end": [half_conect_poly_points_left[3][0], half_conect_poly_points_left[3][1]],
+        }
+
+        configurator_points["half_conect_taper_stright_width"] = {
+            "text": "half_conect_taper_stright_width",
+            "start": [half_conect_poly_points_left[1][0], half_conect_poly_points_left[1][1]],
+            "end": [half_conect_poly_points_left[2][0], half_conect_poly_points_left[2][1]],
+        }
+
+        configurator_points["half_conect_taper_diag_width"] = {
+            "text": "half_conect_taper_diag_width",
+            "start": [half_conect_poly_points_left[0][0], half_conect_poly_points_left[1][1]],
+            "end": [half_conect_poly_points_left[1][0], half_conect_poly_points_left[1][1]],
+        }
+
+        configurator_points["half_conect_taper_inner_height"] = {
+            "text": "half_conect_taper_inner_height",
+            "start": [half_conect_poly_points_left[0][0], half_conect_poly_points_left[0][1]],
+            "end": [half_conect_poly_points_left[-1][0], half_conect_poly_points_left[-1][1]],
+        }
+
+        configurator_points["half_conect_distacne_from_center"] = {
+            "text": "half_conect_distacne_from_center",
+            "start": [x, (half_conect_poly_points_left[0][1] + half_conect_poly_points_left[-1][1]) / 2],
+            "end": [half_conect_poly_points_left[0][0], (half_conect_poly_points_left[0][1] + half_conect_poly_points_left[-1][1]) / 2],
+        }
+
+        configurator_points["half_conect_bridge_rect_width"] = {
+            "text": "half_conect_bridge_rect_width",
+            "start": [-half_conect_bridge_rect_width / 2, -half_conect_bridge_rect_height / 2],
+            "end": [half_conect_bridge_rect_width / 2, -half_conect_bridge_rect_height / 2],
+        }
+
+        configurator_points["half_conect_bridge_rect_height"] = {
+            "text": "half_conect_bridge_rect_height",
+            "start": [half_conect_bridge_rect_width / 2, -half_conect_bridge_rect_height / 2],
+            "end": [half_conect_bridge_rect_width / 2, +half_conect_bridge_rect_height / 2],
+        }
+
+        configurator_points["half_conect_bridge_pad_width"] = {
+            "text": "half_conect_bridge_pad_width",
+            "start": [half_conect_bridge_pad_offset_from_center, -half_conect_bridge_pad_height / 2],
+            "end": [half_conect_bridge_pad_offset_from_center + half_conect_bridge_pad_width, -half_conect_bridge_pad_height / 2],
+        }
+
+        configurator_points["half_conect_bridge_pad_height"] = {
+            "text": "half_conect_bridge_pad_height",
+            "start": [half_conect_bridge_pad_offset_from_center, -half_conect_bridge_pad_height / 2],
+            "end": [half_conect_bridge_pad_offset_from_center, +half_conect_bridge_pad_height / 2],
+        }
+
+        configurator_points["half_conect_bridge_pad_offset_from_center"] = {
+            "text": "half_conect_bridge_pad_offset_from_center",
+            "start": [x, y],
+            "end": [half_conect_bridge_pad_offset_from_center, y],
+        }
+
+        configurator_points["full_conect_taper_extra_width"] = {
+            "text": "full_conect_taper_extra_width",
+            "start": [full_conect_poly_points[3][0], full_conect_poly_points[3][1]],
+            "end": [full_conect_poly_points[2][0], full_conect_poly_points[2][1]],
+        }
+
+        configurator_points["full_conect_taper_stright_height"] = {
+            "text": "full_conect_taper_stright_height",
+            "start": [full_conect_poly_points[1][0], full_conect_poly_points[1][1]],
+            "end": [full_conect_poly_points[2][0], full_conect_poly_points[2][1]],
+        }
+
+        configurator_points["full_conect_taper_diag_height"] = {
+            "text": "full_conect_taper_diag_height",
+            "start": [full_conect_poly_points[1][0], full_conect_poly_points[0][1]],
+            "end": [full_conect_poly_points[1][0], full_conect_poly_points[1][1]],
+        }
+
+        configurator_points["full_conect_taper_start_from_center"] = {
+            "text": "full_conect_taper_start_from_center",
+            "start": [x, full_conect_poly_points[0][1]],
+            "end": [x, y],
+        }
+
+        configurator_points["full_conect_center_width"] = {
+            "text": "full_conect_center_width",
+            "start": [full_conect_poly_points[0][0], full_conect_poly_points[0][1]],
+            "end": [full_conect_poly_points[9][0], full_conect_poly_points[9][1]],
+        }
+
+        return conections_dict, configurator_points
 
     def add_Filter_bank_and_get_conection_points(
-        self, x, y, Main_config_file_dict, with_combiner=True, with_crossover=True, only_1_pol=False
+        self,
+        x,
+        y,
+        Main_config_file_dict,
+        with_combiner=True,
+        with_crossover=True,
+        only_1_pol=False,
+        return_configurator_points=False,
+        return_configurator_points_for_Lo_pass=False,
+        return_configurator_points_for_Hi_pass=False,
+        return_configurator_points_for_combiner_150ghz=False,
+        return_configurator_points_for_combiner_90ghz=False,
     ):
-        """
-        Adds the filter bank structure to the chip centered at the x,y coordinate
-        given. By default this will be drawn with phase combiners and ring overlap
-        crossovers and with both polorizations filtered.
+        """Adds the filter bank structure to the chip centered at the x,y
+        coordinate given. By default this will be drawn with phase combiners
+        and ring overlap crossovers and with both polorizations filtered.
 
         Parameters
         ----------
@@ -5099,6 +6686,21 @@ class SOUK_Functions:
             on the mask**, namely the Hugh filters. These extra parts will have to
             be **removed manually**.
 
+        return_configurator_points=False
+            return a the points for use in the configurator.
+
+        return_configurator_points_for_Lo_pass=False
+            return a the points for use in the configurator.
+
+        return_configurator_points_for_Hi_pass=False
+            return a the points for use in the configurator.
+
+        return_configurator_points_for_combiner_150ghz=False
+            return a the points for use in the configurator.
+
+        return_configurator_points_for_combiner_90ghz=False
+            return a the points for use in the configurator.
+
         Returns
         -------
         points_to_conect_kids_dict : dict
@@ -5107,9 +6709,6 @@ class SOUK_Functions:
             to the filter bank.
 
             This dict has keys: **'TR', 'TL', 'BL', 'BR'**.
-
-
-
         """
 
         config = Main_config_file_dict["filter_bank"]
@@ -5495,15 +7094,29 @@ class SOUK_Functions:
                 self.add_Lo_pass_filters(
                     x, y, inner_ring_line_width, inner_ring_radius, (i * pi / 2) + pi / 4, "clockwise", Main_config_file_dict
                 )
-                self.add_Hi_pass_filters(
-                    x, y, inner_ring_line_width, inner_ring_radius, (i * pi / 2) + pi / 4, "anti-clockwise", Main_config_file_dict
+                configurator_points_for_Hi_pass = self.add_Hi_pass_filters(
+                    x,
+                    y,
+                    inner_ring_line_width,
+                    inner_ring_radius,
+                    (i * pi / 2) + pi / 4,
+                    "anti-clockwise",
+                    Main_config_file_dict,
+                    return_configurator_points=return_configurator_points_for_Hi_pass,
                 )
             if i == 1 and not only_1_pol:
                 self.add_Hi_pass_filters(
                     x, y, inner_ring_line_width, inner_ring_radius, (i * pi / 2) + pi / 4, "clockwise", Main_config_file_dict
                 )
-                self.add_Lo_pass_filters(
-                    x, y, inner_ring_line_width, inner_ring_radius, (i * pi / 2) + pi / 4, "anti-clockwise", Main_config_file_dict
+                configurator_points_for_Lo_pass = self.add_Lo_pass_filters(
+                    x,
+                    y,
+                    inner_ring_line_width,
+                    inner_ring_radius,
+                    (i * pi / 2) + pi / 4,
+                    "anti-clockwise",
+                    Main_config_file_dict,
+                    return_configurator_points=return_configurator_points_for_Lo_pass,
                 )
             if i == 2:
                 self.add_Hi_pass_filters(
@@ -5523,6 +7136,8 @@ class SOUK_Functions:
             combiner_xpos = x + (outer_ring_radius * cos(pi / 4 + i * (pi / 2)))
             combiner_ypos = y + (outer_ring_radius * sin(pi / 4 + i * (pi / 2)))
 
+            conections_dict = {}
+
             if with_combiner:
                 if i in [1, 3]:
                     mirror_combiner = False
@@ -5530,7 +7145,7 @@ class SOUK_Functions:
                     mirror_combiner = True
 
                 if i in [0, 1]:
-                    conection_point = self.add_combiner_section_and_get_conect_point(
+                    conection_point, configurator_points_for_combiner_150ghz = self.add_combiner_section_and_get_conect_point(
                         combiner_xpos,
                         combiner_ypos,
                         (pi / 4 + i * pi / 2),
@@ -5539,9 +7154,10 @@ class SOUK_Functions:
                         Main_config_file_dict,
                         combiner_type="150GHZ",
                         mirror_combiner=mirror_combiner,
+                        return_configurator_points=return_configurator_points_for_combiner_150ghz,
                     )
                 else:
-                    conection_point = self.add_combiner_section_and_get_conect_point(
+                    conection_point, configurator_points_for_combiner_90ghz = self.add_combiner_section_and_get_conect_point(
                         combiner_xpos,
                         combiner_ypos,
                         (pi / 4 + i * pi / 2),
@@ -5550,6 +7166,7 @@ class SOUK_Functions:
                         Main_config_file_dict,
                         combiner_type="90GHZ",
                         mirror_combiner=mirror_combiner,
+                        return_configurator_points=return_configurator_points_for_combiner_90ghz,
                     )
             else:
                 conection_point = [
@@ -5600,7 +7217,8 @@ class SOUK_Functions:
                     bend_radius=inner_bend_radius,
                     **self.Nb_Antenna,
                 )
-                self.Main.add(inner_0_path)
+                self.make_flexpath_into_polygons_and_add_to_main(inner_0_path, self.Nb_Antenna["layer"], self.Nb_Antenna["datatype"])
+                # self.Main.add(inner_0_path)
 
                 inner_1_conection_points = [
                     conections_dict["inner_conect_1"],
@@ -5633,7 +7251,8 @@ class SOUK_Functions:
                     bend_radius=inner_bend_radius,
                     **self.Nb_Antenna,
                 )
-                self.Main.add(inner_1_path)
+                self.make_flexpath_into_polygons_and_add_to_main(inner_1_path, self.Nb_Antenna["layer"], self.Nb_Antenna["datatype"])
+                # self.Main.add(inner_1_path)
 
                 # outer conections to ring overlap
                 outer_0_conection_points = [
@@ -5667,7 +7286,8 @@ class SOUK_Functions:
                     bend_radius=outer_bend_radius,
                     **self.Nb_Antenna,
                 )
-                self.Main.add(outer_0_path)
+                self.make_flexpath_into_polygons_and_add_to_main(outer_0_path, self.Nb_Antenna["layer"], self.Nb_Antenna["datatype"])
+                # self.Main.add(outer_0_path)
 
                 outer_1_conection_points = [
                     conections_dict["outer_conect_1"],
@@ -5693,31 +7313,510 @@ class SOUK_Functions:
                     ],
                 ]
 
-                right_path = gdspy.FlexPath(
+                outer_1_path = gdspy.FlexPath(
                     outer_1_conection_points,
                     inner_ring_line_width,
                     corners="circular bend",
                     bend_radius=outer_bend_radius,
                     **self.Nb_Antenna,
                 )
-                self.Main.add(right_path)
+                self.make_flexpath_into_polygons_and_add_to_main(outer_1_path, self.Nb_Antenna["layer"], self.Nb_Antenna["datatype"])
+                # self.Main.add(outer_1_path)
 
             inner_ring_overlap_theta += pi / 2
             outer_ring_overlap_theta += pi / 2
 
         if only_1_pol and not with_crossover:
             return one_pol_connect_dict
-        else:
+
+        if not return_configurator_points:
             return points_to_conect_kids_dict
 
+        if return_configurator_points_for_Lo_pass:
+            return points_to_conect_kids_dict, configurator_points_for_Lo_pass
+
+        if return_configurator_points_for_Hi_pass:
+            return points_to_conect_kids_dict, configurator_points_for_Hi_pass
+
+        if return_configurator_points_for_combiner_150ghz:
+            return points_to_conect_kids_dict, configurator_points_for_combiner_150ghz
+
+        if return_configurator_points_for_combiner_90ghz:
+            return points_to_conect_kids_dict, configurator_points_for_combiner_90ghz
+
+        configurator_points = {}
+
+        annotate_ang = pi / 2 - 0.15
+        configurator_points["outer_ring_radius"] = {
+            "text": "outer_ring_radius",
+            "start": [x, y],
+            "end": [
+                x + outer_ring_radius * cos(annotate_ang),
+                y + outer_ring_radius * sin(annotate_ang),
+            ],
+        }
+
+        annotate_ang -= 0.3
+        configurator_points["inner_ring_radius"] = {
+            "text": "inner_ring_radius",
+            "start": [x, y],
+            "end": [
+                x + inner_ring_radius * cos(annotate_ang),
+                y + inner_ring_radius * sin(annotate_ang),
+            ],
+        }
+
+        configurator_points["ring_overlap_distance_from_center"] = {
+            "text": "ring_overlap_distance_from_center",
+            "start": [x, y],
+            "end": [
+                x + ring_overlap_distance_from_center * cos(0.0),
+                y + ring_overlap_distance_from_center * sin(0.0),
+            ],
+        }
+
+        annotate_ang = pi / 2 - 0.3
+
+        configurator_points["inner_ring_line_width"] = {
+            "text": "inner_ring_line_width",
+            "start": [
+                x + (inner_ring_radius - inner_ring_line_width / 2) * cos(annotate_ang),
+                y + (inner_ring_radius - inner_ring_line_width / 2) * sin(annotate_ang),
+            ],
+            "end": [
+                x + (inner_ring_radius + inner_ring_line_width / 2) * cos(annotate_ang),
+                y + (inner_ring_radius + inner_ring_line_width / 2) * sin(annotate_ang),
+            ],
+        }
+
+        configurator_points["outer_ring_line_width"] = {
+            "text": "outer_ring_line_width",
+            "start": [
+                x + (outer_ring_radius - outer_ring_line_width / 2) * cos(annotate_ang),
+                y + (outer_ring_radius - outer_ring_line_width / 2) * sin(annotate_ang),
+            ],
+            "end": [
+                x + (outer_ring_radius + outer_ring_line_width / 2) * cos(annotate_ang),
+                y + (outer_ring_radius + outer_ring_line_width / 2) * sin(annotate_ang),
+            ],
+        }
+
+        configurator_points["inner_ring_overlap_gap"] = {
+            "text": "inner_ring_overlap_gap",
+            "start": [
+                x + inner_ring_radius * cos(inner_ring_overlap_theta),
+                y + inner_ring_radius * sin(inner_ring_overlap_theta),
+            ],
+            "end": [
+                x + inner_ring_radius * cos(-inner_ring_overlap_theta),
+                y + inner_ring_radius * sin(-inner_ring_overlap_theta),
+            ],
+        }
+
+        configurator_points["outer_ring_overlap_gap"] = {
+            "text": "outer_ring_overlap_gap",
+            "start": [
+                x + outer_ring_radius * cos(outer_ring_overlap_theta),
+                y + outer_ring_radius * sin(outer_ring_overlap_theta),
+            ],
+            "end": [
+                x + outer_ring_radius * cos(-outer_ring_overlap_theta),
+                y + outer_ring_radius * sin(-outer_ring_overlap_theta),
+            ],
+        }
+
+        configurator_points["outer_ring_conector_gap"] = {
+            "text": "outer_ring_conector_gap",
+            "start": [
+                x + outer_ring_radius * cos((pi / 4) + outer_combiner_theta),
+                y + outer_ring_radius * sin((pi / 4) + outer_combiner_theta),
+            ],
+            "end": [
+                x + outer_ring_radius * cos((pi / 4) - outer_combiner_theta),
+                y + outer_ring_radius * sin((pi / 4) - outer_combiner_theta),
+            ],
+        }
+
+        configurator_points["inner_straight_extend_distance"] = {
+            "text": "inner_straight_extend_distance",
+            "start": [
+                x + (inner_ring_radius * cos((3 * pi / 2) - inner_ring_arc_angle / 2 + inner_straight_extend_distance / inner_ring_radius)),
+                y + (inner_ring_radius * sin((3 * pi / 2) - inner_ring_arc_angle / 2 + inner_straight_extend_distance / inner_ring_radius)),
+            ],
+            "end": [
+                x + (inner_ring_radius * cos((3 * pi / 2) - inner_ring_arc_angle / 2)),
+                y + (inner_ring_radius * sin((3 * pi / 2) - inner_ring_arc_angle / 2)),
+            ],
+        }
+
+        configurator_points["inner_straight_extend_distance_B"] = {
+            "text": "inner_straight_extend_distance",
+            "start": [
+                conections_dict["inner_conect_0"][0],
+                conections_dict["inner_conect_0"][1],
+            ],
+            "end": [
+                conections_dict["inner_conect_0"][0] + inner_straight_extend_distance * cos(-3 * pi / 4 + 3 * pi / 2),
+                conections_dict["inner_conect_0"][1] + inner_straight_extend_distance * sin(-3 * pi / 4 + 3 * pi / 2),
+            ],
+        }
+
+        dy = (
+            -configurator_points["inner_straight_extend_distance_B"]["end"][1]
+            + configurator_points["inner_straight_extend_distance"]["end"][1]
+        )
+        dx = (
+            -configurator_points["inner_straight_extend_distance_B"]["end"][0]
+            + configurator_points["inner_straight_extend_distance"]["end"][0]
+        )
+        angle_of_middle_section = np.arctan2(dy, dx)
+
+        dy = (
+            -configurator_points["inner_straight_extend_distance_B"]["start"][1]
+            + configurator_points["inner_straight_extend_distance_B"]["end"][1]
+        )
+        dx = (
+            -configurator_points["inner_straight_extend_distance_B"]["start"][0]
+            + configurator_points["inner_straight_extend_distance_B"]["end"][0]
+        )
+        angle_of_overlap_ext_section = np.arctan2(dy, dx)
+
+        dy = (
+            -configurator_points["inner_straight_extend_distance"]["start"][1]
+            + configurator_points["inner_straight_extend_distance"]["end"][1]
+        )
+        dx = (
+            -configurator_points["inner_straight_extend_distance"]["start"][0]
+            + configurator_points["inner_straight_extend_distance"]["end"][0]
+        )
+        angle_of_arc_ext_section = np.arctan2(dy, dx)
+
+        configurator_points["inner_bend_radius"] = {
+            "text": "inner_bend_radius",
+            "start": [
+                conections_dict["inner_conect_0"][0]
+                + inner_straight_extend_distance * cos(-3 * pi / 4 + 3 * pi / 2)
+                + inner_bend_radius * cos((pi / 2) + (angle_of_overlap_ext_section + angle_of_middle_section) / 2),
+                conections_dict["inner_conect_0"][1]
+                + inner_straight_extend_distance * sin(-3 * pi / 4 + 3 * pi / 2)
+                + inner_bend_radius * sin((pi / 2) + (angle_of_overlap_ext_section + angle_of_middle_section) / 2),
+            ],
+            "end": [
+                conections_dict["inner_conect_0"][0] + inner_straight_extend_distance * cos(-3 * pi / 4 + 3 * pi / 2),
+                conections_dict["inner_conect_0"][1] + inner_straight_extend_distance * sin(-3 * pi / 4 + 3 * pi / 2),
+            ],
+        }
+
+        configurator_points["inner_bend_radius_B"] = {
+            "text": "inner_bend_radius",
+            "start": [
+                x
+                + (inner_ring_radius * cos((3 * pi / 2) - inner_ring_arc_angle / 2 + inner_straight_extend_distance / inner_ring_radius))
+                + inner_bend_radius * cos((pi / 2) + (angle_of_arc_ext_section + angle_of_middle_section) / 2),
+                y
+                + (inner_ring_radius * sin((3 * pi / 2) - inner_ring_arc_angle / 2 + inner_straight_extend_distance / inner_ring_radius))
+                + inner_bend_radius * sin((pi / 2) + (angle_of_arc_ext_section + angle_of_middle_section) / 2),
+            ],
+            "end": [
+                x + (inner_ring_radius * cos((3 * pi / 2) - inner_ring_arc_angle / 2 + inner_straight_extend_distance / inner_ring_radius)),
+                y + (inner_ring_radius * sin((3 * pi / 2) - inner_ring_arc_angle / 2 + inner_straight_extend_distance / inner_ring_radius)),
+            ],
+        }
+
+        configurator_points["outer_straight_extend_distance"] = {
+            "text": "outer_straight_extend_distance",
+            "start": [
+                x + (outer_ring_radius * cos((3 * pi / 2) - outer_ring_arc_angle / 2 + outer_straight_extend_distance / outer_ring_radius)),
+                y + (outer_ring_radius * sin((3 * pi / 2) - outer_ring_arc_angle / 2 + outer_straight_extend_distance / outer_ring_radius)),
+            ],
+            "end": [
+                x + (outer_ring_radius * cos((3 * pi / 2) - outer_ring_arc_angle / 2)),
+                y + (outer_ring_radius * sin((3 * pi / 2) - outer_ring_arc_angle / 2)),
+            ],
+        }
+
+        configurator_points["outer_straight_extend_distance_B"] = {
+            "text": "outer_straight_extend_distance",
+            "start": [
+                conections_dict["outer_conect_0"][0],
+                conections_dict["outer_conect_0"][1],
+            ],
+            "end": [
+                conections_dict["outer_conect_0"][0] + outer_straight_extend_distance * cos(-3 * pi / 2 + 3 * pi / 4),
+                conections_dict["outer_conect_0"][1] + outer_straight_extend_distance * sin(-3 * pi / 2 + 3 * pi / 4),
+            ],
+        }
+
+        dy = (
+            -configurator_points["outer_straight_extend_distance_B"]["end"][1]
+            + configurator_points["outer_straight_extend_distance"]["end"][1]
+        )
+        dx = (
+            -configurator_points["outer_straight_extend_distance_B"]["end"][0]
+            + configurator_points["outer_straight_extend_distance"]["end"][0]
+        )
+        angle_of_middle_section = np.arctan2(dy, dx)
+
+        dy = (
+            -configurator_points["outer_straight_extend_distance_B"]["start"][1]
+            + configurator_points["outer_straight_extend_distance_B"]["end"][1]
+        )
+        dx = (
+            -configurator_points["outer_straight_extend_distance_B"]["start"][0]
+            + configurator_points["outer_straight_extend_distance_B"]["end"][0]
+        )
+        angle_of_overlap_ext_section = np.arctan2(dy, dx)
+
+        dy = (
+            -configurator_points["outer_straight_extend_distance"]["start"][1]
+            + configurator_points["outer_straight_extend_distance"]["end"][1]
+        )
+        dx = (
+            -configurator_points["outer_straight_extend_distance"]["start"][0]
+            + configurator_points["outer_straight_extend_distance"]["end"][0]
+        )
+        angle_of_arc_ext_section = np.arctan2(dy, dx)
+
+        configurator_points["outer_bend_radius"] = {
+            "text": "outer_bend_radius",
+            "start": [
+                conections_dict["outer_conect_0"][0]
+                + outer_straight_extend_distance * cos(-3 * pi / 2 + 3 * pi / 4)
+                + outer_bend_radius * cos((pi / 2) + (angle_of_overlap_ext_section + angle_of_middle_section) / 2),
+                conections_dict["outer_conect_0"][1]
+                + outer_straight_extend_distance * sin(-3 * pi / 2 + 3 * pi / 4)
+                + outer_bend_radius * sin((pi / 2) + (angle_of_overlap_ext_section + angle_of_middle_section) / 2),
+            ],
+            "end": [
+                conections_dict["outer_conect_0"][0] + outer_straight_extend_distance * cos(-3 * pi / 2 + 3 * pi / 4),
+                conections_dict["outer_conect_0"][1] + outer_straight_extend_distance * sin(-3 * pi / 2 + 3 * pi / 4),
+            ],
+        }
+
+        configurator_points["outer_bend_radius_B"] = {
+            "text": "outer_bend_radius",
+            "start": [
+                x
+                + (outer_ring_radius * cos((3 * pi / 2) - outer_ring_arc_angle / 2 + outer_straight_extend_distance / outer_ring_radius))
+                + outer_bend_radius * cos((-pi / 2) + (angle_of_arc_ext_section + angle_of_middle_section) / 2),
+                y
+                + (outer_ring_radius * sin((3 * pi / 2) - outer_ring_arc_angle / 2 + outer_straight_extend_distance / outer_ring_radius))
+                + outer_bend_radius * sin((-pi / 2) + (angle_of_arc_ext_section + angle_of_middle_section) / 2),
+            ],
+            "end": [
+                x + (outer_ring_radius * cos((3 * pi / 2) - outer_ring_arc_angle / 2 + outer_straight_extend_distance / outer_ring_radius)),
+                y + (outer_ring_radius * sin((3 * pi / 2) - outer_ring_arc_angle / 2 + outer_straight_extend_distance / outer_ring_radius)),
+            ],
+        }
+
+        angle_inc -= Hugh_filter_thin_arc_angles[0]
+        configurator_points["Hugh_filter_thin_length1"] = {
+            "text": "Hugh_filter_thin_length1",
+            "start": [
+                x + outer_ring_radius * cos((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thin_arc_angles[0]),
+                y + outer_ring_radius * sin((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thin_arc_angles[0]),
+            ],
+            "end": [
+                x + outer_ring_radius * cos((pi) + mid_Hugh_angle - angle_inc),
+                y + outer_ring_radius * sin((pi) + mid_Hugh_angle - angle_inc),
+            ],
+        }
+
+        configurator_points["Hugh_filter_thin_width"] = {
+            "text": "Hugh_filter_thin_width",
+            "start": [
+                x
+                + (outer_ring_radius - (Hugh_filter_thin_width / 2))
+                * cos((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thin_arc_angles[0]),
+                y
+                + (outer_ring_radius - (Hugh_filter_thin_width / 2))
+                * sin((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thin_arc_angles[0]),
+            ],
+            "end": [
+                x
+                + (outer_ring_radius + (Hugh_filter_thin_width / 2))
+                * cos((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thin_arc_angles[0]),
+                y
+                + (outer_ring_radius + (Hugh_filter_thin_width / 2))
+                * sin((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thin_arc_angles[0]),
+            ],
+        }
+
+        angle_inc -= Hugh_filter_thick_arc_angles[0]
+        configurator_points["Hugh_filter_thick_length1"] = {
+            "text": "Hugh_filter_thick_length1",
+            "start": [
+                x + outer_ring_radius * cos((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thick_arc_angles[0]),
+                y + outer_ring_radius * sin((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thick_arc_angles[0]),
+            ],
+            "end": [
+                x + outer_ring_radius * cos((pi) + mid_Hugh_angle - angle_inc),
+                y + outer_ring_radius * sin((pi) + mid_Hugh_angle - angle_inc),
+            ],
+        }
+
+        configurator_points["Hugh_filter_thick_width"] = {
+            "text": "Hugh_filter_thick_width",
+            "start": [
+                x
+                + (outer_ring_radius - (Hugh_filter_thick_width / 2))
+                * cos((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thick_arc_angles[0]),
+                y
+                + (outer_ring_radius - (Hugh_filter_thick_width / 2))
+                * sin((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thick_arc_angles[0]),
+            ],
+            "end": [
+                x
+                + (outer_ring_radius + (Hugh_filter_thick_width / 2))
+                * cos((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thick_arc_angles[0]),
+                y
+                + (outer_ring_radius + (Hugh_filter_thick_width / 2))
+                * sin((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thick_arc_angles[0]),
+            ],
+        }
+
+        angle_inc -= Hugh_filter_thin_arc_angles[1]
+        configurator_points["Hugh_filter_thin_length2"] = {
+            "text": "Hugh_filter_thin_length2",
+            "start": [
+                x + outer_ring_radius * cos((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thin_arc_angles[1]),
+                y + outer_ring_radius * sin((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thin_arc_angles[1]),
+            ],
+            "end": [
+                x + outer_ring_radius * cos((pi) + mid_Hugh_angle - angle_inc),
+                y + outer_ring_radius * sin((pi) + mid_Hugh_angle - angle_inc),
+            ],
+        }
+
+        angle_inc -= Hugh_filter_thick_arc_angles[1]
+        configurator_points["Hugh_filter_thick_length2"] = {
+            "text": "Hugh_filter_thick_length2",
+            "start": [
+                x + outer_ring_radius * cos((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thick_arc_angles[1]),
+                y + outer_ring_radius * sin((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thick_arc_angles[1]),
+            ],
+            "end": [
+                x + outer_ring_radius * cos((pi) + mid_Hugh_angle - angle_inc),
+                y + outer_ring_radius * sin((pi) + mid_Hugh_angle - angle_inc),
+            ],
+        }
+
+        angle_inc -= Hugh_filter_thin_arc_angles[1]
+        configurator_points["Hugh_filter_thin_length2_B"] = {
+            "text": "Hugh_filter_thin_length2",
+            "start": [
+                x + outer_ring_radius * cos((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thin_arc_angles[1]),
+                y + outer_ring_radius * sin((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thin_arc_angles[1]),
+            ],
+            "end": [
+                x + outer_ring_radius * cos((pi) + mid_Hugh_angle - angle_inc),
+                y + outer_ring_radius * sin((pi) + mid_Hugh_angle - angle_inc),
+            ],
+        }
+
+        angle_inc -= Hugh_filter_thick_arc_angles[0]
+        configurator_points["Hugh_filter_thick_length1_B"] = {
+            "text": "Hugh_filter_thick_length1",
+            "start": [
+                x + outer_ring_radius * cos((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thick_arc_angles[0]),
+                y + outer_ring_radius * sin((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thick_arc_angles[0]),
+            ],
+            "end": [
+                x + outer_ring_radius * cos((pi) + mid_Hugh_angle - angle_inc),
+                y + outer_ring_radius * sin((pi) + mid_Hugh_angle - angle_inc),
+            ],
+        }
+
+        angle_inc -= Hugh_filter_thin_arc_angles[0]
+        configurator_points["Hugh_filter_thin_length1_B"] = {
+            "text": "Hugh_filter_thin_length1",
+            "start": [
+                x + outer_ring_radius * cos((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thin_arc_angles[0]),
+                y + outer_ring_radius * sin((pi) + mid_Hugh_angle - angle_inc - Hugh_filter_thin_arc_angles[0]),
+            ],
+            "end": [
+                x + outer_ring_radius * cos((pi) + mid_Hugh_angle - angle_inc),
+                y + outer_ring_radius * sin((pi) + mid_Hugh_angle - angle_inc),
+            ],
+        }
+
+        ang_mult = 0
+        configurator_points["ring_overlap_0_rot"] = {
+            "text": "ring_overlap_0_rot",
+            "start": [
+                x + ring_overlap_distance_from_center * cos((ang_mult * pi)),
+                y + ring_overlap_distance_from_center * sin((ang_mult * pi)),
+            ],
+            "end": [
+                x
+                + ring_overlap_distance_from_center * cos((ang_mult * pi))
+                + (outer_straight_extend_distance * cos(self.deg_to_rad(ring_overlap_0_rot))),
+                y
+                + ring_overlap_distance_from_center * sin((ang_mult * pi))
+                + (outer_straight_extend_distance * sin(self.deg_to_rad(ring_overlap_0_rot))),
+            ],
+        }
+
+        ang_mult = 1 / 2
+        configurator_points["ring_overlap_1_rot"] = {
+            "text": "ring_overlap_1_rot",
+            "start": [
+                x + ring_overlap_distance_from_center * cos((ang_mult * pi)),
+                y + ring_overlap_distance_from_center * sin((ang_mult * pi)),
+            ],
+            "end": [
+                x
+                + ring_overlap_distance_from_center * cos((ang_mult * pi))
+                + (outer_straight_extend_distance * cos(self.deg_to_rad(ring_overlap_1_rot))),
+                y
+                + ring_overlap_distance_from_center * sin((ang_mult * pi))
+                + (outer_straight_extend_distance * sin(self.deg_to_rad(ring_overlap_1_rot))),
+            ],
+        }
+
+        ang_mult = 1
+        configurator_points["ring_overlap_2_rot"] = {
+            "text": "ring_overlap_2_rot",
+            "start": [
+                x + ring_overlap_distance_from_center * cos((ang_mult * pi)),
+                y + ring_overlap_distance_from_center * sin((ang_mult * pi)),
+            ],
+            "end": [
+                x
+                + ring_overlap_distance_from_center * cos((ang_mult * pi))
+                + (outer_straight_extend_distance * cos(self.deg_to_rad(ring_overlap_2_rot))),
+                y
+                + ring_overlap_distance_from_center * sin((ang_mult * pi))
+                + (outer_straight_extend_distance * sin(self.deg_to_rad(ring_overlap_2_rot))),
+            ],
+        }
+
+        ang_mult = 3 / 2
+        configurator_points["ring_overlap_3_rot"] = {
+            "text": "ring_overlap_3_rot",
+            "start": [
+                x + ring_overlap_distance_from_center * cos((ang_mult * pi)),
+                y + ring_overlap_distance_from_center * sin((ang_mult * pi)),
+            ],
+            "end": [
+                x
+                + ring_overlap_distance_from_center * cos((ang_mult * pi))
+                + (outer_straight_extend_distance * cos(self.deg_to_rad(ring_overlap_3_rot))),
+                y
+                + ring_overlap_distance_from_center * sin((ang_mult * pi))
+                + (outer_straight_extend_distance * sin(self.deg_to_rad(ring_overlap_3_rot))),
+            ],
+        }
+
+        return points_to_conect_kids_dict, configurator_points
+
     def connect_filter_bank_to_KIDs(self, x, y, absolute_filter_bank_points, relative_kid_positions, only_1_pol_no_comb=False):
-        """
-        Adds a microstrip feedline connecting the filter bank connection points
-        (normally the end of the connection to the phase combiner) to the KIDs.
-        There is a bend coming out of both the combiner on the filter bank and
-        the KID and in the middle of the microstrip feedline is a taper if the
-        two needed linewidths differ. The parameters for this microstrip line
-        are defined at the top of this function.
+        """Adds a microstrip feedline connecting the filter bank connection
+        points (normally the end of the connection to the phase combiner) to
+        the KIDs. There is a bend coming out of both the combiner on the filter
+        bank and the KID and in the middle of the microstrip feedline is a
+        taper if the two needed linewidths differ. The parameters for this
+        microstrip line are defined at the top of this function.
 
         Parameters
         ----------
@@ -5744,7 +7843,6 @@ class SOUK_Functions:
             This is should be used when the function to add the filter bank,
             add_Filter_bank_and_get_conection_points, has the arguments
             with_combiner=False, only_1_pol=True, with_crossover=False.
-
         """
 
         KID_conection_linewidth = 3
@@ -5863,8 +7961,10 @@ class SOUK_Functions:
 
             # adds the taper and the two flex paths for each side to the main cell
             self.Main.add(taper)
-            self.Main.add(KID_to_taper)
-            self.Main.add(taper_to_FILT)
+            self.make_flexpath_into_polygons_and_add_to_main(KID_to_taper, self.Nb_Antenna["layer"], self.Nb_Antenna["datatype"])
+            self.make_flexpath_into_polygons_and_add_to_main(taper_to_FILT, self.Nb_Antenna["layer"], self.Nb_Antenna["datatype"])
+            # self.Main.add(KID_to_taper)
+            # self.Main.add(taper_to_FILT)
 
         return
 
@@ -5877,12 +7977,13 @@ class SOUK_Functions:
         Main_config_file_dict,
         terminate_ants=[],
         add_dielectric_under_conections=True,
+        return_configurator_points=False,
     ):
-        """
-        Adds a co-planar waveguide feedline that transitons to a microstrip that
-        connects the antenna pads to the inner ring of the filter bank. The
-        co-planar waveguide is on the antenna pad side and the microstrip is on the
-        filter bank side. The parameters of this geometry is within the config.
+        """Adds a co-planar waveguide feedline that transitons to a microstrip
+        that connects the antenna pads to the inner ring of the filter bank.
+        The co-planar waveguide is on the antenna pad side and the microstrip
+        is on the filter bank side. The parameters of this geometry is within
+        the config.
 
         Parameters
         ----------
@@ -5915,6 +8016,9 @@ class SOUK_Functions:
         add_dielectric_under_conections = True
             Default is True which adds a dielectric strip under the connection
             from the antenna to the filter bank.
+
+        return_configurator_points=False
+            return a the points for use in the configurator.
         """
 
         config = Main_config_file_dict["antenna_cpw_microstrip_trans"]
@@ -6042,7 +8146,11 @@ class SOUK_Functions:
                 bend_radius=flex_path_bend_radius,
                 **self.Nb_Antenna,
             )
-            self.Main.add(ANT_to_TRANS_path)
+            self.make_flexpath_into_polygons_and_add_to_main(ANT_to_TRANS_path, self.Nb_Antenna["layer"], self.Nb_Antenna["datatype"])
+            # poly_points_flexpath = self.get_polys_from_flexpath(ANT_to_TRANS_path)
+            # for i in range(len(poly_points_flexpath)):
+            #     port_to_fdln_outer_path_polygon = gdspy.Polygon(poly_points_flexpath[i], **self.Nb_Antenna)
+            #     self.Main.add([port_to_fdln_outer_path_polygon])
 
             cutout_around_ANT_to_TANS_polys = self.get_polys_from_flexpath(
                 gdspy.FlexPath(
@@ -6063,17 +8171,21 @@ class SOUK_Functions:
                 bend_radius=flex_path_bend_radius,
                 **self.Nb_Antenna,
             )
-            self.Main.add(TRANS_to_FILT_path)
+            self.make_flexpath_into_polygons_and_add_to_main(TRANS_to_FILT_path, self.Nb_Antenna["layer"], self.Nb_Antenna["datatype"])
+            # poly_points_flexpath = self.get_polys_from_flexpath(TRANS_to_FILT_path)
+            # for i in range(len(poly_points_flexpath)):
+            #     port_to_fdln_outer_path_polygon = gdspy.Polygon(poly_points_flexpath[i], **self.Nb_Antenna)
+            #     self.Main.add([port_to_fdln_outer_path_polygon])
 
             TRANS_cutouts = gdspy.CellReference(
                 transition, tenth_pnt_straight, rotation=(self.rad_to_deg(middle_straight_angle))
             )  # adds the transition geometry between CPW and microstrip antenna a fith of the way down the middle straight
             self.ground_plane_cutouts.add(TRANS_cutouts)
 
-            points = self.rotate_and_move_points_list(
+            cpw_transition_center_points = self.rotate_and_move_points_list(
                 cpw_transition_poly_points, middle_straight_angle, tenth_pnt_straight[0], tenth_pnt_straight[1]
             )
-            cpw_transition_center = gdspy.Polygon(points, **self.Nb_Antenna)
+            cpw_transition_center = gdspy.Polygon(cpw_transition_center_points, **self.Nb_Antenna)
             self.Main.add(cpw_transition_center)
 
             if add_dielectric_under_conections:
@@ -6087,7 +8199,14 @@ class SOUK_Functions:
                     **self.SiN_dep,
                 )
                 # self.silicon_nitride_positives.add(dielectric_under_connection_path)
-                self.Main.add(dielectric_under_connection_path)
+                # self.Main.add(dielectric_under_connection_path)
+                self.make_flexpath_into_polygons_and_add_to_main(
+                    dielectric_under_connection_path, self.SiN_dep["layer"], self.SiN_dep["datatype"]
+                )
+                # poly_points_flexpath = self.get_polys_from_flexpath(dielectric_under_connection_path)
+                # for i in range(len(poly_points_flexpath)):
+                #     port_to_fdln_outer_path_polygon = gdspy.Polygon(poly_points_flexpath[i], **self.SiN_dep)
+                #     self.Main.add([port_to_fdln_outer_path_polygon])
 
         mander_length = 2514
         meander_width = 3
@@ -6156,7 +8275,106 @@ class SOUK_Functions:
             self.Main.add(arc_far)
             self.Main.add(conect_overlap)
 
-        return
+        if not return_configurator_points:
+            return
+
+        configurator_points = {}
+
+        configurator_points["gap1"] = {
+            "text": "gap1",
+            "start": [cpw_transition_center_points[0][0], cpw_transition_center_points[0][1]],
+            "end": [cpw_transition_center_points[1][0], cpw_transition_center_points[1][1]],
+        }
+
+        configurator_points["CPW_tans_len1"] = {
+            "text": "CPW_tans_len1",
+            "start": [cpw_transition_center_points[2][0], cpw_transition_center_points[2][1]],
+            "end": [cpw_transition_center_points[3][0], cpw_transition_center_points[3][1]],
+        }
+
+        configurator_points["gap2"] = {
+            "text": "gap2",
+            "start": [cpw_transition_center_points[4][0], cpw_transition_center_points[4][1]],
+            "end": [cpw_transition_center_points[5][0], cpw_transition_center_points[5][1]],
+        }
+
+        configurator_points["CPW_tans_len2"] = {
+            "text": "CPW_tans_len2",
+            "start": [cpw_transition_center_points[6][0], cpw_transition_center_points[6][1]],
+            "end": [cpw_transition_center_points[7][0], cpw_transition_center_points[7][1]],
+        }
+
+        configurator_points["gap3"] = {
+            "text": "gap3",
+            "start": [cpw_transition_center_points[8][0], cpw_transition_center_points[8][1]],
+            "end": [cpw_transition_center_points[9][0], cpw_transition_center_points[9][1]],
+        }
+
+        configurator_points["CPW_tans_len3"] = {
+            "text": "CPW_tans_len3",
+            "start": [cpw_transition_center_points[10][0], cpw_transition_center_points[10][1]],
+            "end": [cpw_transition_center_points[11][0], cpw_transition_center_points[11][1]],
+        }
+
+        configurator_points["gap4"] = {
+            "text": "gap4",
+            "start": [cpw_transition_center_points[12][0], cpw_transition_center_points[12][1]],
+            "end": [cpw_transition_center_points[13][0], cpw_transition_center_points[13][1]],
+        }
+
+        configurator_points["CPW_tans_len4"] = {
+            "text": "CPW_tans_len4",
+            "start": [cpw_transition_center_points[14][0], cpw_transition_center_points[14][1]],
+            "end": [cpw_transition_center_points[15][0], cpw_transition_center_points[15][1]],
+        }
+
+        configurator_points["gap5"] = {
+            "text": "gap5",
+            "start": [cpw_transition_center_points[16][0], cpw_transition_center_points[16][1]],
+            "end": [cpw_transition_center_points[17][0], cpw_transition_center_points[17][1]],
+        }
+
+        configurator_points["CPW_tans_len5"] = {
+            "text": "CPW_tans_len5",
+            "start": [cpw_transition_center_points[18][0], cpw_transition_center_points[18][1]],
+            "end": [cpw_transition_center_points[19][0], cpw_transition_center_points[19][1]],
+        }
+
+        configurator_points["microstrip_lw"] = {
+            "text": "microstrip_lw",
+            "start": [cpw_transition_center_points[-1][0], cpw_transition_center_points[-1][1]],
+            "end": [cpw_transition_center_points[0][0], cpw_transition_center_points[0][1]],
+        }
+
+        poins_for_last_trans_cutout = TRANS_cutouts.get_polygons()[0]
+        configurator_points["CPW_width"] = {
+            "text": "CPW_width",
+            "start": [poins_for_last_trans_cutout[1][0], poins_for_last_trans_cutout[1][1]],
+            "end": [poins_for_last_trans_cutout[0][0], poins_for_last_trans_cutout[0][1]],
+        }
+
+        configurator_points["extend_out_distance"] = {
+            "text": "extend_out_distance",
+            "start": [ANT[0], ANT[1]],
+            "end": [extended_ANT[0], extended_ANT[1]],
+        }
+
+        extention_angle = self.deg_to_rad(antena_rot + 1 * 90) % (2 * pi)
+        mid_of_angle = (middle_straight_angle % (2 * pi)) - (extention_angle)
+
+        configurator_points["flex_path_bend_radius"] = {
+            "text": "flex_path_bend_radius",
+            "start": [
+                extended_ANT[0] + flex_path_bend_radius * cos(mid_of_angle),
+                extended_ANT[1] + flex_path_bend_radius * sin(mid_of_angle),
+            ],
+            "end": [
+                extended_ANT[0] + CPW_width * cos(mid_of_angle),
+                extended_ANT[1] + CPW_width * sin(mid_of_angle),
+            ],
+        }
+
+        return configurator_points
 
     def connect_ants_to_KIDs(
         self,
@@ -6168,11 +8386,10 @@ class SOUK_Functions:
         Main_config_file_dict,
         add_dielectric_under_conections=True,
     ):
-        """
-        Adds a co-planar waveguide feedline that transitons to a microstrip that
-        connects the antenna pads to the meanders of the KIDs. The co-planar
-        waveguide is on the antenna pad side and the microstrip is on the KID
-        side. The parameters of this geometry is within the config.
+        """Adds a co-planar waveguide feedline that transitons to a microstrip
+        that connects the antenna pads to the meanders of the KIDs. The co-
+        planar waveguide is on the antenna pad side and the microstrip is on
+        the KID side. The parameters of this geometry is within the config.
 
         Parameters
         ----------
@@ -6362,9 +8579,9 @@ class SOUK_Functions:
         return
 
     def get_rounded_path_from_passthough_points(self, feedline_pass_through_points, bend_radius, bend_points_gap=10):
-        """
-        Generates a list of [x,y] points of a path with rounded corners from an
-        input list of [x,y] points of a path. Rounds corners with given bend radius.
+        """Generates a list of [x,y] points of a path with rounded corners from
+        an input list of [x,y] points of a path. Rounds corners with given bend
+        radius.
 
         The bend is put before the corner point. e.g.
         bending the path [[0,1], [1,1], [1,0]] with bend radius of 1 will form a
@@ -6397,7 +8614,6 @@ class SOUK_Functions:
             passes through. Similar in form to the input list
             ("feedline_pass_through_points") however this new list will contain a
             lot more points. The
-
         """
         rounded_feedline_points = []
         rounded_feedline_points.append(feedline_pass_through_points[0])
@@ -6483,12 +8699,11 @@ class SOUK_Functions:
     def add_feedline_and_dielectric(
         self, feed_points, Main_config_file_dict, center_material="Nb", add_bridges=True, points_to_avoid_bridging=None
     ):
-        """
-        Adds a Co-Planar Waveguide feedline through the points given along with the
-        dielectric layer and adds brdiges across every so many units by default.
-        The parameters determining the feeline geometry are the config. The CPW
-        consists of the center line, cut out in the ground plane around this center
-        line and a dielectric layer covering that.
+        """Adds a Co-Planar Waveguide feedline through the points given along
+        with the dielectric layer and adds brdiges across every so many units
+        by default. The parameters determining the feeline geometry are the
+        config. The CPW consists of the center line, cut out in the ground
+        plane around this center line and a dielectric layer covering that.
 
         Parameters
         ----------
@@ -6521,7 +8736,6 @@ class SOUK_Functions:
             distance of one of these points it will try and shift the bridge in
             the positive x direction a distance defined in a variable below
             until it no longer is considered clashing.
-
         """
 
         config = Main_config_file_dict["cpw_feedline"]
@@ -6536,13 +8750,21 @@ class SOUK_Functions:
             center_path = gdspy.FlexPath(
                 feed_points, feedline_width, corners="circular bend", bend_radius=bend_radius, gdsii_path=True, **self.Nb_Antenna
             )
-            self.Main.add(center_path)
+            self.make_flexpath_into_polygons_and_add_to_main(center_path, self.Nb_Antenna["layer"], self.Nb_Antenna["datatype"])
+            # poly_points_flexpath = self.get_polys_from_flexpath(center_path)
+            # for i in range(len(poly_points_flexpath)):
+            #     port_to_fdln_outer_path_polygon = gdspy.Polygon(poly_points_flexpath[i], **self.Nb_Antenna)
+            #     self.Main.add([port_to_fdln_outer_path_polygon])
 
         if center_material == "Al":
             center_path = gdspy.FlexPath(
                 feed_points, feedline_width, corners="circular bend", bend_radius=bend_radius, gdsii_path=True, **self.Aluminium
             )
-            self.Main.add(center_path)
+            self.make_flexpath_into_polygons_and_add_to_main(center_path, self.Aluminium["layer"], self.Aluminium["datatype"])
+            # poly_points_flexpath = self.get_polys_from_flexpath(center_path)
+            # for i in range(len(poly_points_flexpath)):
+            #     port_to_fdln_outer_path_polygon = gdspy.Polygon(poly_points_flexpath[i], **self.Aluminium)
+            #     self.Main.add([port_to_fdln_outer_path_polygon])
 
         if center_material == "Both":
             center_path1 = gdspy.FlexPath(
@@ -6551,8 +8773,16 @@ class SOUK_Functions:
             center_path2 = gdspy.FlexPath(
                 feed_points, feedline_width, corners="circular bend", bend_radius=bend_radius, gdsii_path=True, **self.Nb_Antenna
             )
-            self.Main.add(center_path1)
-            self.Main.add(center_path2)
+            self.make_flexpath_into_polygons_and_add_to_main(center_path1, self.Aluminium["layer"], self.Aluminium["datatype"])
+            self.make_flexpath_into_polygons_and_add_to_main(center_path2, self.Nb_Antenna["layer"], self.Nb_Antenna["datatype"])
+            # poly_points_flexpath = self.get_polys_from_flexpath(center_path1)
+            # for i in range(len(poly_points_flexpath)):
+            #     port_to_fdln_outer_path_polygon = gdspy.Polygon(poly_points_flexpath[i], **self.Aluminium)
+            #     self.Main.add([port_to_fdln_outer_path_polygon])
+            # poly_points_flexpath = self.get_polys_from_flexpath(center_path2)
+            # for i in range(len(poly_points_flexpath)):
+            #     port_to_fdln_outer_path_polygon = gdspy.Polygon(poly_points_flexpath[i], **self.Aluminium)
+            #     self.Main.add([port_to_fdln_outer_path_polygon])
 
         ground_plane_cuttout_outer_path = gdspy.FlexPath(
             feed_points, cutout_around_feedline_width, corners="circular bend", bend_radius=bend_radius, gdsii_path=True
@@ -6584,7 +8814,7 @@ class SOUK_Functions:
 
         rounded_feedline_points = self.get_rounded_path_from_passthough_points(feed_points, bend_radius)
 
-        self.Main.add(gdspy.FlexPath(rounded_feedline_points, 20, layer=600))
+        # self.Main.add(gdspy.FlexPath(rounded_feedline_points, 20, layer=600))
 
         lengths_of_path_sections = np.zeros(len(rounded_feedline_points) - 1)
         angles_of_path_sections = np.zeros(len(rounded_feedline_points) - 1)
@@ -6678,8 +8908,7 @@ class SOUK_Functions:
         cutout_center_around_end_distance=0.5,
         return_outer_poly_points=False,
     ):
-        """
-        Adds a Co-Planar Waveguide (CPW) feedline through the points given
+        """Adds a Co-Planar Waveguide (CPW) feedline through the points given
         along with the dielectric layer. The parameters determining the feeline
         geometry are passed as agurments. The CPW consists of the center line,
         cut out in the ground plane around this center line and a dielectric
@@ -6735,8 +8964,6 @@ class SOUK_Functions:
 
         return_outer_poly_points = False
             Will return the outer polygon points if set to true.
-
-
         """
 
         # makes and adds the center of the cpw flex path in the material specified
@@ -6933,7 +9160,7 @@ class SOUK_Functions:
 
         rounded_feedline_points = self.get_rounded_path_from_passthough_points(feed_points, bend_radius)
 
-        self.Main.add(gdspy.FlexPath(rounded_feedline_points, 20, layer=600))
+        # self.Main.add(gdspy.FlexPath(rounded_feedline_points, 20, layer=600))
 
         lengths_of_path_sections = np.zeros(len(rounded_feedline_points) - 1)
         angles_of_path_sections = np.zeros(len(rounded_feedline_points) - 1)
@@ -6994,8 +9221,7 @@ class SOUK_Functions:
     def add_port_and_get_connection_point(
         self, x, y, rotation, Main_config_file_dict, center_material="Nb", add_extra_squares=True, dielectric_cutout_in_port=True
     ):
-        """
-        Adds a port to the mask consisting of a tapered section and a back
+        """Adds a port to the mask consisting of a tapered section and a back
         straight. The port will be added where the middle base of the back
         straight section sits at the x, y given.
 
@@ -7131,9 +9357,8 @@ class SOUK_Functions:
         return feedline_connection_point
 
     def get_feedline_pass_through_points(self, x, y, relative_kid_positions, Main_config_file_dict):
-        """
-        This will get a list of coordinates where the feedline should connect to
-        the KIDs. This is the end of the coupler.
+        """This will get a list of coordinates where the feedline should
+        connect to the KIDs. This is the end of the coupler.
 
         Parameters
         ----------
@@ -7157,7 +9382,6 @@ class SOUK_Functions:
             list of [x,y] lists defining the coordinates where to feedline should
             connect to the KIDs. This list has the coonection coordinates for the
             KIDs in order top left, top right, bot left, bot right.
-
         """
         feed_pass_points = []
         res_config = Main_config_file_dict["resonator"]
@@ -7214,10 +9438,9 @@ class SOUK_Functions:
         return feed_pass_points
 
     def get_total_height_of_resonator(self, Main_config_file_dict):
-        """
-        This will get the total height of the resonator from the base of the
-        inductive meander to the end of the ground plane cutout at the top of the
-        structure.
+        """This will get the total height of the resonator from the base of the
+        inductive meander to the end of the ground plane cutout at the top of
+        the structure.
 
         Parameters
         ----------
@@ -7229,7 +9452,6 @@ class SOUK_Functions:
         -------
         KID_height : float
             The total height of the KID calculated from the config file.
-
         """
 
         res_config = Main_config_file_dict["resonator"]
@@ -7248,9 +9470,8 @@ class SOUK_Functions:
         return KID_height
 
     def get_width_height_of_resonator_IDC_section(self, Main_config_file_dict):
-        """
-        This will get the total width and height of ground plane cutout around the
-        IDC section of the KID.
+        """This will get the total width and height of ground plane cutout
+        around the IDC section of the KID.
 
         Parameters
         ----------
@@ -7263,7 +9484,6 @@ class SOUK_Functions:
         [KID_width, KID_height] : list
             This is a list containing, in order, the KID_width and the KID_height
             of the KID's IDC section calculated from the config file.
-
         """
 
         res_config = Main_config_file_dict["resonator"]
@@ -7298,10 +9518,9 @@ class SOUK_Functions:
         return [KID_width, KID_height]
 
     def get_total_width_of_resonator(self, Main_config_file_dict):
-        """
-        This will get the total width of the resonator from the far left of the
-        ground plane cutout to the far right of the ground plane cutout of the
-        structure. This will always be the widest part of the KID.
+        """This will get the total width of the resonator from the far left of
+        the ground plane cutout to the far right of the ground plane cutout of
+        the structure. This will always be the widest part of the KID.
 
         Parameters
         ----------
@@ -7313,7 +9532,6 @@ class SOUK_Functions:
         -------
         KID_width : float
             The total width of the KID calculated from the config file.
-
         """
 
         res_config = Main_config_file_dict["resonator"]
@@ -7338,11 +9556,11 @@ class SOUK_Functions:
         return KID_width
 
     def get_feedline_center_to_meander_base_distance(self, Main_config_file_dict):
-        """
-        This will calculate the the vertical distance from the center of the
-        feeline to where the base of the KIDs inductive meander will sit assuming
-        the coupler arm buts up against the edge of the CPW feedline center strip.
-        This distance is calculated based on the dimensions within the config file.
+        """This will calculate the the vertical distance from the center of the
+        feeline to where the base of the KIDs inductive meander will sit
+        assuming the coupler arm buts up against the edge of the CPW feedline
+        center strip. This distance is calculated based on the dimensions
+        within the config file.
 
         Parameters
         ----------
@@ -7359,7 +9577,6 @@ class SOUK_Functions:
             "right_side_width" from within the "get_total_width_of_resonator"
             function but here this also calculates the distance to feedline
             dimension.
-
         """
 
         res_config = Main_config_file_dict["resonator"]
@@ -7378,11 +9595,10 @@ class SOUK_Functions:
         return feedline_to_meander_base_distance
 
     def get_relative_kid_positions(self, Main_config_file_dict):
-        """
-        Gets the positions of the base of the KID meanders relative to the center
-        of the antennas in the middle. The relative KID positions is returned as a
-        list is the order, [top_left, top_right, bot_left, bot_right], where each
-        element is an [x, y] list.
+        """Gets the positions of the base of the KID meanders relative to the
+        center of the antennas in the middle. The relative KID positions is
+        returned as a list is the order, [top_left, top_right, bot_left,
+        bot_right], where each element is an [x, y] list.
 
         Parameters
         ----------
@@ -7396,7 +9612,6 @@ class SOUK_Functions:
             list of [x,y] lists that are the coordinates of the base of the KIDs
             meanders. These KID positons are in order top_left, top_right,
             bot_left, bot_right.
-
         """
 
         tot_kid_height = self.get_total_height_of_resonator(Main_config_file_dict)
@@ -7421,13 +9636,12 @@ class SOUK_Functions:
         return rel_kid_positions
 
     def get_relative_antena_conect_positions(self, rotation, Main_config_file_dict):
-        r"""
-        Gets the connect positions of the end of the antennas relative to the
-        center of the antennas. The relative antenna conect positions is returned
-        as a list is the order, [bot, top, left, right], where each element is an
-        [x, y] list. If the rotation setting in config is non-zero  this should be
-        included in the rotation arg. The relative positions are only rotated by
-        this rotation amount.
+        r"""Gets the connect positions of the end of the antennas relative to
+        the center of the antennas. The relative antenna conect positions is
+        returned as a list is the order, [bot, top, left, right], where each
+        element is an [x, y] list. If the rotation setting in config is non-
+        zero  this should be included in the rotation arg. The relative
+        positions are only rotated by this rotation amount.
 
         Parameters
         ----------
@@ -7450,7 +9664,6 @@ class SOUK_Functions:
             any rotation has been done. i.e. if rotated $\pi$ radians the top
             refers to the antenna at the bottom now, left will refer to right
             antenna and so on.
-
         """
 
         ant_config = Main_config_file_dict["antenna"]
@@ -7469,11 +9682,17 @@ class SOUK_Functions:
         return rel_ant_conect_positions
 
     def add_sma_connector_and_launcher_and_get_connection(
-        self, x, y, rot, Main_config_file_dict, bend="none", cutout_dielectric_over_taper=True
+        self,
+        x,
+        y,
+        rot,
+        Main_config_file_dict,
+        bend="none",
+        cutout_dielectric_over_taper=True,
+        return_configurator_points=False,
     ):
-        """
-        Creates an SMA connector where the center pin is located at the x,y given
-        and returns the point where a feedline should connect.
+        """Creates an SMA connector where the center pin is located at the x,y
+        given and returns the point where a feedline should connect.
 
         Parameters
         ----------
@@ -7500,6 +9719,9 @@ class SOUK_Functions:
             section and some of the section behind that also. This is overall
             5000um of cutout. When False this will not be cutout.
 
+        return_configurator_points=False
+            return a the points for use in the configurator.
+
         Returns
         -------
         conection : list
@@ -7511,7 +9733,8 @@ class SOUK_Functions:
         feed_config = Main_config_file_dict["cpw_feedline"]
 
         sma_square_offset_left = sma_config["sma_square_offset_left"]  # 0
-        sma_square_offset_right = 7000  # sma_config["sma_square_offset_right"]#5000
+        # sma_square_offset_right = 7000  # sma_config["sma_square_offset_right"]#5000
+        sma_square_offset_right = sma_config["sma_square_offset_right"]  # 5000
         sma_square_offset_top = sma_config["sma_square_offset_top"]  # 1250
         sma_square_offset_bot = sma_config["sma_square_offset_bot"]  # 1250
 
@@ -7560,6 +9783,8 @@ class SOUK_Functions:
             )
             cutout_box.rotate(rot, [x, y])
             self.silicon_nitride_cutouts.add([cutout_box])
+
+        configurator_points = {}
 
         # making cpw and taper
         if (bend != "left") and (bend != "right"):
@@ -7614,166 +9839,251 @@ class SOUK_Functions:
             # getting the conection point
             connection_point_xy = self.rotate(x, y, x + (sma_square_width / 2) + sma_square_offset_right, y, rot)
 
+            configurator_points["taper_length"] = {
+                "text": "taper_length",
+                "start": [grnd_cutout_poly_points[1][0], grnd_cutout_poly_points[1][1]],
+                "end": [grnd_cutout_poly_points[2][0], grnd_cutout_poly_points[1][1]],
+            }
+
+            configurator_points["dielectric_overlap_distance_top"] = {
+                "text": "dielectric_overlap_distance",
+                "start": [x, y + (central_linewidth / 2) + gap],
+                "end": [x, y + (central_linewidth / 2) + gap + dielectric_overlap_distance],
+            }
+
+            configurator_points["dielectric_overlap_distance_bot"] = {
+                "text": "dielectric_overlap_distance",
+                "start": [x, y - (central_linewidth / 2) - gap],
+                "end": [x, y - (central_linewidth / 2) - gap - dielectric_overlap_distance],
+            }
+
+        else:
+            if bend == "left":
+                final_bend_angle = -pi / 2
+                sign = +1
+            else:
+                final_bend_angle = +pi / 2
+                sign = -1
+
+            bend_offset_from_end = sma_config["bend_offset_from_end"]  # 200
+            extra_bend_center = sma_config["extra_bend_center"]  # 50
+
+            taper_length = (
+                (sma_square_height / 2)
+                + sma_square_offset_top
+                - (central_linewidth / 2)
+                - gap
+                - dielectric_overlap_distance
+                - extra_bend_center
+            )
+
+            central_section_poly_points = [
+                [x - (sma_square_width / 2) - sma_square_offset_left, y + (central_linewidth / 2)],
+                [x + (sma_square_width / 2) + sma_square_offset_right - taper_length - bend_offset_from_end, y + (central_linewidth / 2)],
+                [x + (sma_square_width / 2) + sma_square_offset_right - taper_length - bend_offset_from_end, y - (central_linewidth / 2)],
+                [x - (sma_square_width / 2) - sma_square_offset_left, y - (central_linewidth / 2)],
+            ]
+
+            grnd_cutout_poly_points = [
+                [x - (sma_square_width / 2) - sma_square_offset_left, y + (central_linewidth / 2) + gap],
+                [
+                    x + (sma_square_width / 2) + sma_square_offset_right - taper_length - bend_offset_from_end,
+                    y + (central_linewidth / 2) + gap,
+                ],
+                [
+                    x + (sma_square_width / 2) + sma_square_offset_right - taper_length - bend_offset_from_end,
+                    y - (central_linewidth / 2) - gap,
+                ],
+                [x - (sma_square_width / 2) - sma_square_offset_left, y - (central_linewidth / 2) - gap],
+            ]
+
+            dielectric_poly_points = [
+                [x - (sma_square_width / 2) - sma_square_offset_left, y + (central_linewidth / 2) + gap + dielectric_overlap_distance],
+                [
+                    x + (sma_square_width / 2) + sma_square_offset_right - taper_length - bend_offset_from_end,
+                    y + (central_linewidth / 2) + gap + dielectric_overlap_distance,
+                ],
+                [
+                    x + (sma_square_width / 2) + sma_square_offset_right - taper_length - bend_offset_from_end,
+                    y - (central_linewidth / 2) - gap - dielectric_overlap_distance,
+                ],
+                [x - (sma_square_width / 2) - sma_square_offset_left, y - (central_linewidth / 2) - gap - dielectric_overlap_distance],
+            ]
+
+            central_section_poly = gdspy.Polygon(central_section_poly_points, **self.Nb_Antenna)
+            central_section_poly.rotate(rot, [x, y])
+            self.Main.add(central_section_poly)
+
+            # adding the ground plane cutout around the central path
+            grnd_cutout_poly = gdspy.Polygon(grnd_cutout_poly_points, **self.Nb_Groundplane)
+            grnd_cutout_poly.rotate(rot, [x, y])
+            self.ground_plane_cutouts.add(grnd_cutout_poly)
+
+            # adding the dielectric around the ground plane cutout
+            dielectric_poly = gdspy.Polygon(dielectric_poly_points, **self.SiN_dep)
+            dielectric_poly.rotate(rot, [x, y])
+            self.Main.add(dielectric_poly)
+
+            # making the bend for each section
+            bend_center_xy = [
+                x + (sma_square_width / 2) + sma_square_offset_right - taper_length - bend_offset_from_end,
+                y + sign * ((central_linewidth / 2) + gap + dielectric_overlap_distance + extra_bend_center),
+            ]
+
+            dielectric_section_inner_bend_radius = extra_bend_center
+            dielectric_section_outer_bend_radius = (
+                dielectric_section_inner_bend_radius + (2 * dielectric_overlap_distance) + (2 * gap) + central_linewidth
+            )
+
+            dielectric_section_bend = gdspy.Round(
+                bend_center_xy,
+                dielectric_section_outer_bend_radius,
+                inner_radius=dielectric_section_inner_bend_radius,
+                initial_angle=0,
+                final_angle=final_bend_angle,
+                **self.SiN_dep,
+            )
+            dielectric_section_bend.rotate(rot, [x, y])
+            self.Main.add(dielectric_section_bend)
+
+            grnd_cutout_inner_bend_radius = extra_bend_center + dielectric_overlap_distance
+            grnd_cutout_outer_bend_radius = grnd_cutout_inner_bend_radius + (2 * gap) + central_linewidth
+
+            grnd_cutout_bend = gdspy.Round(
+                bend_center_xy,
+                grnd_cutout_outer_bend_radius,
+                inner_radius=grnd_cutout_inner_bend_radius,
+                initial_angle=0,
+                final_angle=final_bend_angle,
+                **self.Nb_Groundplane,
+            )
+            grnd_cutout_bend.rotate(rot, [x, y])
+            self.ground_plane_cutouts.add(grnd_cutout_bend)
+
+            central_section_inner_bend_radius = extra_bend_center + dielectric_overlap_distance + gap
+            central_section_outer_bend_radius = central_section_inner_bend_radius + central_linewidth
+
+            central_section_bend = gdspy.Round(
+                bend_center_xy,
+                central_section_outer_bend_radius,
+                inner_radius=central_section_inner_bend_radius,
+                initial_angle=0,
+                final_angle=final_bend_angle,
+                **self.Nb_Antenna,
+            )
+            central_section_bend.rotate(rot, [x, y])
+            self.Main.add(central_section_bend)
+
+            end_of_round_x = bend_center_xy[0] + extra_bend_center + dielectric_overlap_distance + gap + (central_linewidth / 2)
+            end_of_round_y = bend_center_xy[1]
+
+            central_taper_poly_points = [
+                [end_of_round_x - (central_linewidth / 2), end_of_round_y],
+                [end_of_round_x - (feedline_width / 2), end_of_round_y + sign * taper_length],
+                [end_of_round_x + (feedline_width / 2), end_of_round_y + sign * taper_length],
+                [end_of_round_x + (central_linewidth / 2), end_of_round_y],
+            ]
+
+            grnd_cutout_taper_poly_points = [
+                [end_of_round_x - (central_linewidth / 2) - gap, end_of_round_y],
+                [end_of_round_x - (cutout_around_feedline_width / 2), end_of_round_y + sign * taper_length],
+                [end_of_round_x + (cutout_around_feedline_width / 2), end_of_round_y + sign * taper_length],
+                [end_of_round_x + (central_linewidth / 2) + gap, end_of_round_y],
+            ]
+
+            dielectric_taper_poly_points = [
+                [end_of_round_x - (central_linewidth / 2) - gap - dielectric_overlap_distance, end_of_round_y],
+                [end_of_round_x - (dielectric_under_feedline_width / 2), end_of_round_y + sign * taper_length],
+                [end_of_round_x + (dielectric_under_feedline_width / 2), end_of_round_y + sign * taper_length],
+                [end_of_round_x + (central_linewidth / 2) + gap + dielectric_overlap_distance, end_of_round_y],
+            ]
+
+            # adding the central taper
+            central_taper_poly = gdspy.Polygon(central_taper_poly_points, **self.Nb_Antenna)
+            central_taper_poly.rotate(rot, [x, y])
+            self.Main.add(central_taper_poly)
+
+            # adding the ground plane cutout taper the central path
+            grnd_cutout_taper_poly = gdspy.Polygon(grnd_cutout_taper_poly_points, **self.Nb_Groundplane)
+            grnd_cutout_taper_poly.rotate(rot, [x, y])
+            self.ground_plane_cutouts.add(grnd_cutout_taper_poly)
+
+            # adding the dielectric taper around the ground plane cutout
+            dielectric_taper_poly = gdspy.Polygon(dielectric_taper_poly_points, **self.SiN_dep)
+            dielectric_taper_poly.rotate(rot, [x, y])
+            self.Main.add(dielectric_taper_poly)
+
+            # getting the conection point
+            connection_point_xy = self.rotate(x, y, end_of_round_x, end_of_round_y + sign * taper_length, rot)
+
+        if not return_configurator_points:
             return connection_point_xy
 
-        if bend == "left":
-            final_bend_angle = -pi / 2
-            sign = +1
-        else:
-            final_bend_angle = +pi / 2
-            sign = -1
+        configurator_points["sma_square_offset_left"] = {
+            "text": "sma_square_offset_left",
+            "start": [x - (sma_square_width / 2), y],
+            "end": [x - (sma_square_width / 2) - sma_square_offset_left, y],
+        }
 
-        bend_offset_from_end = sma_config["bend_offset_from_end"]  # 200
-        extra_bend_center = sma_config["extra_bend_center"]  # 50
+        configurator_points["sma_square_offset_right"] = {
+            "text": "sma_square_offset_right",
+            "start": [x + (sma_square_width / 2), y],
+            "end": [x + (sma_square_width / 2) + sma_square_offset_right, y],
+        }
 
-        taper_length = (
-            (sma_square_height / 2)
-            + sma_square_offset_top
-            - (central_linewidth / 2)
-            - gap
-            - dielectric_overlap_distance
-            - extra_bend_center
-        )
+        configurator_points["sma_square_offset_top"] = {
+            "text": "sma_square_offset_top",
+            "start": [x, y + (sma_square_width / 2)],
+            "end": [x, y + (sma_square_width / 2) + sma_square_offset_top],
+        }
 
-        central_section_poly_points = [
-            [x - (sma_square_width / 2) - sma_square_offset_left, y + (central_linewidth / 2)],
-            [x + (sma_square_width / 2) + sma_square_offset_right - taper_length - bend_offset_from_end, y + (central_linewidth / 2)],
-            [x + (sma_square_width / 2) + sma_square_offset_right - taper_length - bend_offset_from_end, y - (central_linewidth / 2)],
-            [x - (sma_square_width / 2) - sma_square_offset_left, y - (central_linewidth / 2)],
-        ]
+        configurator_points["sma_square_offset_bot"] = {
+            "text": "sma_square_offset_bot",
+            "start": [x, y - (sma_square_width / 2)],
+            "end": [x, y - (sma_square_width / 2) - sma_square_offset_bot],
+        }
 
-        grnd_cutout_poly_points = [
-            [x - (sma_square_width / 2) - sma_square_offset_left, y + (central_linewidth / 2) + gap],
-            [x + (sma_square_width / 2) + sma_square_offset_right - taper_length - bend_offset_from_end, y + (central_linewidth / 2) + gap],
-            [x + (sma_square_width / 2) + sma_square_offset_right - taper_length - bend_offset_from_end, y - (central_linewidth / 2) - gap],
-            [x - (sma_square_width / 2) - sma_square_offset_left, y - (central_linewidth / 2) - gap],
-        ]
+        configurator_points["sma_circle_radius"] = {
+            "text": "sma_circle_radius",
+            "start": [x, y],
+            "end": [x + sma_circle_radius * cos(pi / 4), y + sma_circle_radius * sin(pi / 4)],
+        }
 
-        dielectric_poly_points = [
-            [x - (sma_square_width / 2) - sma_square_offset_left, y + (central_linewidth / 2) + gap + dielectric_overlap_distance],
-            [
-                x + (sma_square_width / 2) + sma_square_offset_right - taper_length - bend_offset_from_end,
-                y + (central_linewidth / 2) + gap + dielectric_overlap_distance,
-            ],
-            [
-                x + (sma_square_width / 2) + sma_square_offset_right - taper_length - bend_offset_from_end,
-                y - (central_linewidth / 2) - gap - dielectric_overlap_distance,
-            ],
-            [x - (sma_square_width / 2) - sma_square_offset_left, y - (central_linewidth / 2) - gap - dielectric_overlap_distance],
-        ]
+        configurator_points["sma_square_width"] = {
+            "text": "sma_square_width",
+            "start": [x - (sma_square_width / 2), y - (sma_square_height / 4)],
+            "end": [x + (sma_square_width / 2), y - (sma_square_height / 4)],
+        }
 
-        central_section_poly = gdspy.Polygon(central_section_poly_points, **self.Nb_Antenna)
-        central_section_poly.rotate(rot, [x, y])
-        self.Main.add(central_section_poly)
+        configurator_points["sma_square_height"] = {
+            "text": "sma_square_height",
+            "start": [x - (sma_square_width / 4), y - (sma_square_height / 2)],
+            "end": [x - (sma_square_width / 4), y + (sma_square_height / 2)],
+        }
 
-        # adding the ground plane cutout around the central path
-        grnd_cutout_poly = gdspy.Polygon(grnd_cutout_poly_points, **self.Nb_Groundplane)
-        grnd_cutout_poly.rotate(rot, [x, y])
-        self.ground_plane_cutouts.add(grnd_cutout_poly)
+        configurator_points["central_linewidth"] = {
+            "text": "central_linewidth",
+            "start": [x, y - (central_linewidth / 2)],
+            "end": [x, y + (central_linewidth / 2)],
+        }
 
-        # adding the dielectric around the ground plane cutout
-        dielectric_poly = gdspy.Polygon(dielectric_poly_points, **self.SiN_dep)
-        dielectric_poly.rotate(rot, [x, y])
-        self.Main.add(dielectric_poly)
+        configurator_points["gap_top"] = {
+            "text": "gap",
+            "start": [x, y + (central_linewidth / 2)],
+            "end": [x, y + (central_linewidth / 2) + gap],
+        }
 
-        # making the bend for each section
-        bend_center_xy = [
-            x + (sma_square_width / 2) + sma_square_offset_right - taper_length - bend_offset_from_end,
-            y + sign * ((central_linewidth / 2) + gap + dielectric_overlap_distance + extra_bend_center),
-        ]
+        configurator_points["gap_bot"] = {
+            "text": "gap",
+            "start": [x, y - (central_linewidth / 2)],
+            "end": [x, y - (central_linewidth / 2) - gap],
+        }
 
-        dielectric_section_inner_bend_radius = extra_bend_center
-        dielectric_section_outer_bend_radius = (
-            dielectric_section_inner_bend_radius + (2 * dielectric_overlap_distance) + (2 * gap) + central_linewidth
-        )
-
-        dielectric_section_bend = gdspy.Round(
-            bend_center_xy,
-            dielectric_section_outer_bend_radius,
-            inner_radius=dielectric_section_inner_bend_radius,
-            initial_angle=0,
-            final_angle=final_bend_angle,
-            **self.SiN_dep,
-        )
-        dielectric_section_bend.rotate(rot, [x, y])
-        self.Main.add(dielectric_section_bend)
-
-        grnd_cutout_inner_bend_radius = extra_bend_center + dielectric_overlap_distance
-        grnd_cutout_outer_bend_radius = grnd_cutout_inner_bend_radius + (2 * gap) + central_linewidth
-
-        grnd_cutout_bend = gdspy.Round(
-            bend_center_xy,
-            grnd_cutout_outer_bend_radius,
-            inner_radius=grnd_cutout_inner_bend_radius,
-            initial_angle=0,
-            final_angle=final_bend_angle,
-            **self.Nb_Groundplane,
-        )
-        grnd_cutout_bend.rotate(rot, [x, y])
-        self.ground_plane_cutouts.add(grnd_cutout_bend)
-
-        central_section_inner_bend_radius = extra_bend_center + dielectric_overlap_distance + gap
-        central_section_outer_bend_radius = central_section_inner_bend_radius + central_linewidth
-
-        central_section_bend = gdspy.Round(
-            bend_center_xy,
-            central_section_outer_bend_radius,
-            inner_radius=central_section_inner_bend_radius,
-            initial_angle=0,
-            final_angle=final_bend_angle,
-            **self.Nb_Antenna,
-        )
-        central_section_bend.rotate(rot, [x, y])
-        self.Main.add(central_section_bend)
-
-        end_of_round_x = bend_center_xy[0] + extra_bend_center + dielectric_overlap_distance + gap + (central_linewidth / 2)
-        end_of_round_y = bend_center_xy[1]
-
-        central_taper_poly_points = [
-            [end_of_round_x - (central_linewidth / 2), end_of_round_y],
-            [end_of_round_x - (feedline_width / 2), end_of_round_y + sign * taper_length],
-            [end_of_round_x + (feedline_width / 2), end_of_round_y + sign * taper_length],
-            [end_of_round_x + (central_linewidth / 2), end_of_round_y],
-        ]
-
-        grnd_cutout_taper_poly_points = [
-            [end_of_round_x - (central_linewidth / 2) - gap, end_of_round_y],
-            [end_of_round_x - (cutout_around_feedline_width / 2), end_of_round_y + sign * taper_length],
-            [end_of_round_x + (cutout_around_feedline_width / 2), end_of_round_y + sign * taper_length],
-            [end_of_round_x + (central_linewidth / 2) + gap, end_of_round_y],
-        ]
-
-        dielectric_taper_poly_points = [
-            [end_of_round_x - (central_linewidth / 2) - gap - dielectric_overlap_distance, end_of_round_y],
-            [end_of_round_x - (dielectric_under_feedline_width / 2), end_of_round_y + sign * taper_length],
-            [end_of_round_x + (dielectric_under_feedline_width / 2), end_of_round_y + sign * taper_length],
-            [end_of_round_x + (central_linewidth / 2) + gap + dielectric_overlap_distance, end_of_round_y],
-        ]
-
-        # adding the central taper
-        central_taper_poly = gdspy.Polygon(central_taper_poly_points, **self.Nb_Antenna)
-        central_taper_poly.rotate(rot, [x, y])
-        self.Main.add(central_taper_poly)
-
-        # adding the ground plane cutout taper the central path
-        grnd_cutout_taper_poly = gdspy.Polygon(grnd_cutout_taper_poly_points, **self.Nb_Groundplane)
-        grnd_cutout_taper_poly.rotate(rot, [x, y])
-        self.ground_plane_cutouts.add(grnd_cutout_taper_poly)
-
-        # adding the dielectric taper around the ground plane cutout
-        dielectric_taper_poly = gdspy.Polygon(dielectric_taper_poly_points, **self.SiN_dep)
-        dielectric_taper_poly.rotate(rot, [x, y])
-        self.Main.add(dielectric_taper_poly)
-
-        # getting the conection point
-        connection_point_xy = self.rotate(x, y, end_of_round_x, end_of_round_y + sign * taper_length, rot)
-
-        return connection_point_xy
+        return connection_point_xy, configurator_points
 
     def get_sma_connector_and_laucher_bounding_box(self, x, y, rot, Main_config_file_dict):
-        """
-        Gets the outer bounding box around an SMA connector where the center pin is
-        located at the x,y given.
+        """Gets the outer bounding box around an SMA connector where the center
+        pin is located at the x,y given.
 
         Parameters
         ----------
@@ -7794,7 +10104,6 @@ class SOUK_Functions:
             Returns the bounding box points of the SMA connector. This is a list
             of [x,y] lists which are coordinates for the top left, top right,
             bot right, bot left points in this order.
-
         """
 
         sma_config = Main_config_file_dict["sma_connector"]
@@ -7820,9 +10129,8 @@ class SOUK_Functions:
         return bounding_box_points
 
     def remove_exclusions_from_hex_pack(self, hex_pack, exclusions_list, Main_config_file_dict):
-        """
-        Removes hex pack points where any part of the KID block would intersect
-        with another feature in the exclusions list.
+        """Removes hex pack points where any part of the KID block would
+        intersect with another feature in the exclusions list.
 
         Parameters
         ----------
@@ -7844,7 +10152,6 @@ class SOUK_Functions:
             Returns a list containing [x, y] lists defining the center of the hex
             points (similar in form to the hex_pack argument) that no longer
             clashes with any features from the exclusion list.
-
         """
 
         kid_block_horizontal_size = Main_config_file_dict["general"]["horizontal_pitch"]
@@ -7879,9 +10186,8 @@ class SOUK_Functions:
         return new_hex_pack
 
     def remove_exclusions_from_split_hex_pack(self, split_hex_pack, exclusions_list, Main_config_file_dict):
-        """
-        Removes hex pack points where any part of the KID block would intersect
-        with another feature in the exclusions list.
+        """Removes hex pack points where any part of the KID block would
+        intersect with another feature in the exclusions list.
 
         Parameters
         ----------
@@ -7904,7 +10210,6 @@ class SOUK_Functions:
             Returns a list (similar in form to the split_hex_pack argument) of two
             lists containing [x, y] lists defining the center of the hex points
             that no longer clashes with any features from the exclusion list.
-
         """
 
         kid_block_horizontal_size = Main_config_file_dict["general"]["horizontal_pitch"]
@@ -7967,9 +10272,8 @@ class SOUK_Functions:
         return [new_bot_hex_pack, new_top_hex_pack]
 
     def combine_split_hex_pack_grid(self, split_hex_pack_grid):
-        """
-        combines a split hex pack grid into one long list instead of two seperate
-        lists.
+        """Combines a split hex pack grid into one long list instead of two
+        seperate lists.
 
         Parameters
         ----------
@@ -7985,7 +10289,6 @@ class SOUK_Functions:
         combined_hex_pack_grid : list
             list containing individual [x,y] lists defining the center of all the
             hex pack grid points.
-
         """
         combined_hex_pack_grid = []
 
@@ -7998,13 +10301,13 @@ class SOUK_Functions:
         return combined_hex_pack_grid
 
     def get_feedline_running_list(self, feed_pass_points, Main_config_file_dict, init_direction="right"):
-        """
-        This will take in a list of all the points that a feedline should pass
-        through and then organizes them into a line running left to right on one
-        row then right to left on the next row above and so on untill all points
-        have been mapped like this. This can start right to left or left to right
-        depending upon the init_direction. This is used to then be able to draw a
-        feedline that meanders nicely through the mask passing over all the KIDs.
+        """This will take in a list of all the points that a feedline should
+        pass through and then organizes them into a line running left to right
+        on one row then right to left on the next row above and so on untill
+        all points have been mapped like this. This can start right to left or
+        left to right depending upon the init_direction. This is used to then
+        be able to draw a feedline that meanders nicely through the mask
+        passing over all the KIDs.
 
         Parameters
         ----------
@@ -8030,7 +10333,6 @@ class SOUK_Functions:
             ordered in rows running right to left on one row and then left to right
             on the row above and so on untill all the points in the original
             feed_pass_points list have been ordered.
-
         """
 
         sorted_list = sorted(feed_pass_points.copy(), key=lambda k: [k[1], k[0]])
@@ -8076,10 +10378,9 @@ class SOUK_Functions:
         return running_list
 
     def add_center_pin_and_get_bounding_points(self, center_pin_xy, center_pin_radius):
-        """
-        Adds a center pin hole cutout to all layers and adds a pin hole positive
-        circle to the pin hole positve later. This also returns a list of [x, y]
-        points defining the boundary points for the pin.
+        """Adds a center pin hole cutout to all layers and adds a pin hole
+        positive circle to the pin hole positve later. This also returns a list
+        of [x, y] points defining the boundary points for the pin.
 
         Adds a center pin cutout to all layers and adds the pin positive to a pin
         positives layer. Also returns a list of [x, y] points defining the boundary
@@ -8098,7 +10399,6 @@ class SOUK_Functions:
         bounding_points : list
             Returns a list containing [x, y] lists defining the boundary points of
             the center pin.
-
         """
 
         ground_plane_cutout_for_center_pin = gdspy.Round(center_pin_xy, center_pin_radius, **self.Nb_Groundplane)
@@ -8126,11 +10426,10 @@ class SOUK_Functions:
         return bounding_points
 
     def add_slotted_pin_and_get_bounding_points(self, slotted_pin_center, slotted_pin_length, slotted_pin_radius, center_pin_xy):
-        """
-        Adds a slotted pin cutout to all layers and adds the pin positive to a pin
-        positives layer. Also returns a list of [x, y] points defining the boundary
-        points for the pin. The slotted pin will always point towards the center of
-        the chip where the center pin hole would be.
+        """Adds a slotted pin cutout to all layers and adds the pin positive to
+        a pin positives layer. Also returns a list of [x, y] points defining
+        the boundary points for the pin. The slotted pin will always point
+        towards the center of the chip where the center pin hole would be.
 
         Parameters
         ----------
@@ -8155,7 +10454,6 @@ class SOUK_Functions:
         bounding_points : list
             Returns a list containing [x, y] lists defining the boundary points of
             the slotted pin.
-
         """
 
         slotted_pin_angle = np.arctan2((slotted_pin_center[1] - center_pin_xy[1]), (slotted_pin_center[0] - center_pin_xy[0]))
@@ -8207,10 +10505,9 @@ class SOUK_Functions:
         return bounding_points
 
     def add_top_choke_features(self, x, y, Main_config_file_dict):
-        """
-        Adds the top choke anulus and waveguide hole to the mask at the xy given.
-        These are added on seperate layers. The parameters controling the dimesions
-        of these are defined in the config.
+        """Adds the top choke anulus and waveguide hole to the mask at the xy
+        given. These are added on seperate layers. The parameters controling
+        the dimesions of these are defined in the config.
 
         Parameters
         ----------
@@ -8220,7 +10517,6 @@ class SOUK_Functions:
         Main_config_file_dict : dict
             dictionary containing individual dictionarys of config settings.
             Requires "top_choke".
-
         """
         # Getting config
         top_choke_config = Main_config_file_dict["top_choke"]
@@ -8241,11 +10537,10 @@ class SOUK_Functions:
         return
 
     def add_bottom_choke_features(self, x, y, rel_kid_positions, Main_config_file_dict):
-        """
-        At the xy given, adds the bottom choke waveguide hole and creates IDC
-        cutout holes. Also adds pads to support the wafer. These are added on
-        seperate layers. The parameters controling the dimesions of these are
-        defined in the config.
+        """At the xy given, adds the bottom choke waveguide hole and creates
+        IDC cutout holes. Also adds pads to support the wafer. These are added
+        on seperate layers. The parameters controling the dimesions of these
+        are defined in the config.
 
         Parameters
         ----------
@@ -8260,7 +10555,6 @@ class SOUK_Functions:
         Main_config_file_dict : dict
             dictionary containing individual dictionarys of config settings.
             Requires "bottom_choke".
-
         """
         # Getting the config
         bottom_choke_config = Main_config_file_dict["bottom_choke"]
@@ -8317,8 +10611,7 @@ class SOUK_Functions:
         return
 
     def add_hexagonal_tabbed_dicing_line(self, hexagon_points, hex_rad, chip_center_xy, all_sma_conectors_xy_rot):
-        """
-        Adds a tabbed dicing line around the SOUK boundary
+        """Adds a tabbed dicing line around the SOUK boundary.
 
         Parameters
         ----------
@@ -8334,8 +10627,6 @@ class SOUK_Functions:
 
         all_sma_conectors_xy_rot : list
             list of [x,y,rot] lists for all the sma connectors on the mask.
-
-
         """
 
         diceline_linewidth = 300
@@ -8522,8 +10813,7 @@ class SOUK_Functions:
     def add_hexagonal_bottom_choke_tabbed_dicing_line(
         self, hexagon_points, hex_rad, chip_center_xy, all_sma_conectors_xy_rot, bend_rad_corner
     ):
-        """
-        Adds a Bottom choke tabbed dicing line around the SOUK boundary
+        """Adds a Bottom choke tabbed dicing line around the SOUK boundary.
 
         Parameters
         ----------
@@ -8542,7 +10832,6 @@ class SOUK_Functions:
 
         bend_rad_corner : float, int
             The bend radius for the outer corners
-
         """
 
         diceline_linewidth = 300
@@ -8738,8 +11027,8 @@ class SOUK_Functions:
         return
 
     def add_all_positive_layers_to_mask(self):
-        """
-        This adds all the positive cells to the mask under new layer names.
+        """This adds all the positive cells to the mask under new layer names.
+
         This is the ground_plane, silicon_nitride, silicon_oxide and the
         silicon_nitride_membrane.
         """
@@ -8801,8 +11090,8 @@ class SOUK_Functions:
         return
 
     def add_all_cutout_layers_to_mask(self):
-        """
-        This adds all the cutout cells to the mask under new layer names.
+        """This adds all the cutout cells to the mask under new layer names.
+
         This is the ground_plane, silicon_nitride, silicon_oxide and the
         silicon_nitride_membrane.
         """
@@ -8862,10 +11151,9 @@ class SOUK_Functions:
         return
 
     def add_Aluminium_Bulk_around_all_Aluminium(self, region_to_avoid=[]):
-        """
-        Adds a bulk aluminium block bounding box around all the aluminium in
-        the Main cell of the mask. This is such that the aluminium can be etched
-        out of the bulk aluminium layer.
+        """Adds a bulk aluminium block bounding box around all the aluminium in
+        the Main cell of the mask. This is such that the aluminium can be
+        etched out of the bulk aluminium layer.
 
         KwArgs
         -------
@@ -8876,7 +11164,6 @@ class SOUK_Functions:
             should be added. e.g. [[x1,y1], [x2,y2], [x3,y3], [x4,y4]].
             This can be multiple different regions as seperate lists. e.g.
             [ [[x1,y1], [x2,y2] .. [xN,yN]], [[x1,y1], [x2,y2] .. [xN,yN]] ].
-
         """
         # TODO add a region to only copy and not expand the bulk aluminium added.
 
@@ -8922,8 +11209,7 @@ class SOUK_Functions:
         return
 
     def expected_time_progress_bar(self, expected_time, progress_bar_title, steps=100):
-        """
-        Shows a progress bar based on the expected_time taken to complete an
+        """Shows a progress bar based on the expected_time taken to complete an
         operation. This is intended to be used in a daemon thread and get
         alongside the other long running operation, e.g. the
         do_boolean_operations() method used this for each of the longer running
@@ -9029,11 +11315,12 @@ class SOUK_Functions:
         print(f"    time taken to do SiN mem = {time_taken}\n")
 
     def do_boolean_operations(self):
-        """
-        This does all the boolean operations on the the positive cells and
+        """This does all the boolean operations on the the positive cells and
         cutout cells for the mask and adds these to the Main cell ready for
-        writing the final gds file. This is the ground_plane, silicon_nitride,
-        silicon_oxide, silicon_nitride_membrane.
+        writing the final gds file.
+
+        This is the ground_plane, silicon_nitride, silicon_oxide,
+        silicon_nitride_membrane.
         """
 
         # TODO Make an alive loop for each of the steps in this process.
@@ -9122,8 +11409,7 @@ class SOUK_Functions:
         return
 
     def append_layer_to_xml(self, layer_prop_dict):
-        """
-        Appends a layer property element to the xml layer properties object.
+        """Appends a layer property element to the xml layer properties object.
 
         Parameters
         ----------
@@ -9140,11 +11426,10 @@ class SOUK_Functions:
         return
 
     def save_layer_props(self, filename):
-        """
-        Save a layer properties file for the mask under the name given.
-        This should be done after do_boolean_operations() has been run to
-        ensure that all the layers that should exist are included within the
-        generated layer properies file.
+        """Save a layer properties file for the mask under the name given. This
+        should be done after do_boolean_operations() has been run to ensure
+        that all the layers that should exist are included within the generated
+        layer properies file.
 
         Parameters
         ----------
@@ -9219,8 +11504,7 @@ class SOUK_Functions:
         make_mirrored_along_y=False,
         mirrored_y_filename="",
     ):
-        """
-        Save and write the mask. This saves everything in the Main cell to a
+        """Save and write the mask. This saves everything in the Main cell to a
         gds file under the given filename. Additionally can save a mirrored
         version. If Anything exists in the MainBackside cell. this will also be
         saved with "_BACKSIDE" appended to the end.

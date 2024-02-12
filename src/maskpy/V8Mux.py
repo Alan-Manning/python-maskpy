@@ -5,8 +5,8 @@ import pandas as pd
 def V8_get_evenly_spaced_freq_array(
     number_of_resonators, min_freq=1970120000.0, max_freq=4174530000.0, order=None, csv_output=False, csv_filename=""
 ):
-    """
-    This returns a list of resonant frequencies for the resonators in an array.
+    """This returns a list of resonant frequencies for the resonators in an
+    array.
 
     Parameters
     ----------
@@ -44,7 +44,6 @@ def V8_get_evenly_spaced_freq_array(
 
     f0s : np.array
         The list of resonant frequencies for the array.
-
     """
 
     f0s = np.linspace(min_freq, max_freq, number_of_resonators)
@@ -112,9 +111,8 @@ def V8_get_evenly_spaced_freq_array(
 
 
 def V8_get_CC_from_IDCL(IDCL_array):
-    """
-    This obtains the coupling capacitor length from the lengths of the IDC arms
-    using the V8 muxing function.
+    """This obtains the coupling capacitor length from the lengths of the IDC
+    arms using the V8 muxing function.
 
     Parameters
     ----------
@@ -182,8 +180,7 @@ def V8_get_CC_from_IDCL(IDCL_array):
 
 
 def V8_get_IDCL_and_CCL_from_f0(f0, rounding_precision=2):
-    """
-    This obtains the IDC lengths and CC length of a resonator for a given
+    """This obtains the IDC lengths and CC length of a resonator for a given
     resonant frequency. These lengths are by default rounded to 2 decimal
     places.
 
@@ -210,7 +207,6 @@ def V8_get_IDCL_and_CCL_from_f0(f0, rounding_precision=2):
 
     CCL : float
         This is the length of the coupling capacitor in um.
-
     """
     min_freq = 1970120000.0
     max_freq = 4174530000.0
