@@ -1,9 +1,5 @@
-"""This is a package for making elements for a SOUK gds mask.
-
-This package relys upon gdspy.
-"""
 # import threading
-import concurrent.futures
+# import concurrent.futures
 import copy
 import datetime
 import os
@@ -16,24 +12,15 @@ import pandas as pd
 
 # import math
 from numpy import cos as cos
-from numpy import mean
 from numpy import pi as pi
 from numpy import sin as sin
 from numpy import tan as tan
 from phidl import geometry as phgeom
 from shapely import geometry as shapely_geom
-
-# from alive_progress import alive_bar
 from tqdm import tqdm
 
-"""
-###############################################################################
-Functions
-###############################################################################
-"""
 
-
-class SOUK_Functions:
+class SoukFuncs:
     """
     Functions for making elements for an SOUK gds mask.
 
@@ -3182,15 +3169,18 @@ class SOUK_Functions:
         f0s,
         IDC_and_CC_function,
         Main_config_file_dict,
+        Q_values=["50k", "50k", "50k", "50k"],
         IDC_and_frame_materials=None,
         meander_materials=None,
         trim_lengths=None,
-        add_grnd_cutout=True,
+        add_grnd_cutout=[True, True, True, True],
         add_SiN_dep_dielectric_around=True,
-        add_SiN_dep_dielectric_cutout=True,
-        add_SiO_cutout=True,
-        add_SiN_membrane_cutout=True,
-        add_backside_check=True,
+        add_SiN_dep_dielectric_cutout=[True, True, True, True],
+        add_SiO_cutout=[True, True, True, True],
+        add_SiN_membrane_cutout=[True, True, True, True],
+        add_backside_check=[True, True, True, True],
+        add_grnd_cutout_over_inductor=[False, False, False, False],
+        add_SiN_dep_dielectric_cutout_over_inductor=[False, False, False, False],
     ):
         """Adds the 4 KIDs geometries to the Main cell. The four kids are
         placed around the center x, y point in order top right, top left, bot
@@ -3222,27 +3212,29 @@ class SOUK_Functions:
 
         IDC_and_CC_function : function
             function for getting the IDC and CC lengths from a given f0. The
-            function should take a single frequency as an argument and should
-            return an array-like (28 long) and a single float **in this order**,
-            the array-like should contain all the lengths for each of the 28 arms
-            for the IDC and the float should be the CC length.
-            A simple example funtion:
+            function should take a frequency and QR value string as arguments
+            and should return an array-like (28 long) and a single float
+            **in this order**, the array-like should contain all the lengths
+            for each of the 28 arms for the IDC and the float should be the CC
+            length. A simple example funtion:
 
-            >>> def example_IDC_CC_func(f0):
-                    '''
-                    Example function for IDC and CC
-                    f0 : float
-                        Resonant frequency in Hz.
-                    '''
-                    if f0 < 3.1e9:
-                        IDC_lengths = np.ones(28)*1900.0
-                        CC_length = 600.0
-                    else:
-                        IDC_lengths = np.ones(28)*1500.0
-                        CC_length = 300.0
-
-                    # return IDC array, then CC seperately
-                    return IDC_lengths, CC_length
+            >>> def example_IDC_CC_func(f0, Q_value):
+            ...     '''
+            ...     Example function for IDC and CC
+            ...     f0 : float
+            ...         Resonant frequency in Hz.
+            ...     QR : str
+            ...         The QR value
+            ...     '''
+            ...     if (f0 < 3.1e9) and (Q_value=="50k"):
+            ...         IDC_lengths = np.ones(28)*1900.0
+            ...         CC_length = 600.0
+            ...     else:
+            ...         IDC_lengths = np.ones(28)*1500.0
+            ...         CC_length = 300.0
+            ...
+            ...     # return IDC array, then CC seperately
+            ...     return IDC_lengths, CC_length
 
         Main_config_file_dict : dict
             dictionary containing individual dictionarys of config settings.
@@ -3250,6 +3242,10 @@ class SOUK_Functions:
 
         KwArgs
         ------
+        Q_values = ["50k", "50k", "50k", "50k"]
+            This is a list of the QR values to use for the resonators in the
+            IDC_and_CC_function. By default this is a list of 4 "50k" strings.
+
         IDC_and_frame_materials=None
             The material to make each of the IDC and frame structures out of.
             By Default this is None which will make all the KIDs out of the
@@ -3277,30 +3273,56 @@ class SOUK_Functions:
             the trim arms to bring them down to the length specified.
             **More info can be found in the add_kid method.**
 
-        add_grnd_cutout=True
+        add_grnd_cutout=[True, True, True, True]
             Whether or not to add a cutout in the Nb_Groundplane layer in the
-            neccary place for the KID structure.
+            neccary place for the KID structure. The order of the values passed
+            in will be attributed to each KID and should be the same order as
+            the rel_kid_positions, TL, TR, BL, BR.
 
         add_SiN_dep_dielectric_around=True
             Whether or not to add an SiN depositon layer around in neccary
             place for the KID structure, this is a box the of the pixel pitch
             around the center of the antenna structure.
 
-        add_SiN_dep_dielectric_cutout=True
+        add_SiN_dep_dielectric_cutout=[True, True, True, True]
             Whether or not to add a cutout in the SiN depositon layer in the
-            neccary place for the KID structure.
+            neccary place for the KID structure. The order of the values passed
+            in will be attributed to each KID and should be the same order as
+            the rel_kid_positions, TL, TR, BL, BR.
 
-        add_SiO_cutout=True
+        add_SiO_cutout=[True, True, True, True]
             Whether or not to add a cutout in the Silicon Oxide layer in the
-            neccary place for the KID structure.
+            neccary place for the KID structure. The order of the values passed
+            in will be attributed to each KID and should be the same order as
+            the rel_kid_positions, TL, TR, BL, BR.
 
-        add_SiN_membrane_cutout=True
+        add_SiN_membrane_cutout=[True, True, True, True]
             Whether or not to add a cutout in the Silicon Nitride membrane layer
-            in the neccary place for the KID structure.
+            in the neccary place for the KID structure. The order of the values
+            passed in will be attributed to each KID and should be the same
+            order as the rel_kid_positions, TL, TR, BL, BR.
 
-        add_backside_check=True
-            Whether or not to add a backside check cover in the
-            neccary place for the KID structure.
+        add_backside_check=[True, True, True, True]
+            Whether or not to add a backside check cover in the neccary place
+            for the KID structure. The order of the values passed in will be
+            attributed to each KID and should be the same order as the
+            rel_kid_positions, TL, TR, BL, BR.
+
+        add_grnd_cutout_over_inductor=[False, False, False, False]
+            Whether or not to add a groundplane cutout over the inductive
+            meander. When true will create a cutout over the mander that is
+            oversived by 30um in all directions relative to the center of the
+            inductive meander. The order of the values passed in will be
+            attributed to each KID and should be the same order as the
+            rel_kid_positions, TL, TR, BL, BR.
+
+        add_SiN_dep_dielectric_cutout_over_inductor=[False, False, False, False]
+            Whether or not to add a SiN depositon cutout over the inductive
+            meander. When true will create a cutout over the mander that is
+            oversived by 20um in all directions relative to the center of the
+            inductive meander. The order of the values passed in will be
+            attributed to each KID and should be the same order as the
+            rel_kid_positions, TL, TR, BL, BR.
         """
         config = Main_config_file_dict["resonator"]
 
@@ -3339,15 +3361,18 @@ class SOUK_Functions:
                 f0s[k],
                 IDC_and_CC_function,
                 Main_config_file_dict,
+                Q_value=Q_values[k],
                 mirror=to_mirror[k],
                 IDC_and_frame_material=IDC_and_frame_materials[k],
                 meander_material=meander_materials[k],
                 trim_length=trim_lengths[k],
-                add_grnd_cutout=add_grnd_cutout,
-                add_SiN_dep_dielectric_cutout=add_SiN_dep_dielectric_cutout,
-                add_SiO_cutout=add_SiO_cutout,
-                add_SiN_membrane_cutout=add_SiN_membrane_cutout,
-                add_backside_check=add_backside_check,
+                add_grnd_cutout=add_grnd_cutout[k],
+                add_SiN_dep_dielectric_cutout=add_SiN_dep_dielectric_cutout[k],
+                add_SiO_cutout=add_SiO_cutout[k],
+                add_SiN_membrane_cutout=add_SiN_membrane_cutout[k],
+                add_backside_check=add_backside_check[k],
+                add_grnd_cutout_over_inductor=add_grnd_cutout_over_inductor[k],
+                add_SiN_dep_dielectric_cutout_over_inductor=add_SiN_dep_dielectric_cutout_over_inductor[k],
             )
 
             # Adding the KID number Text
@@ -3391,6 +3416,7 @@ class SOUK_Functions:
         f0,
         IDC_and_CC_function,
         Main_config_file_dict,
+        Q_value="50k",
         mirror=False,
         IDC_and_frame_material="IDC_Nb",
         meander_material="Al",
@@ -3400,6 +3426,8 @@ class SOUK_Functions:
         add_SiO_cutout=True,
         add_SiN_membrane_cutout=True,
         add_backside_check=True,
+        add_grnd_cutout_over_inductor=False,
+        add_SiN_dep_dielectric_cutout_over_inductor=False,
         return_configurator_points=False,
     ):
         """Adds the KID geometry to the Main cell athe the x,y cooardinate
@@ -3426,27 +3454,30 @@ class SOUK_Functions:
 
         IDC_and_CC_function : function
             function for getting the IDC and CC lengths from a given f0. The
-            function should take a single frequency as an argument and should
-            return an array-like (28 long) and a single float **in this order**,
-            the array-like should contain all the lengths for each of the 28 arms
-            for the IDC and the float should be the CC length.
-            A simple example funtion:
+            function should take a frequency and QR value string as arguments
+            and should return an array-like (28 long) and a single float
+            **in this order**, the array-like should contain all the lengths
+            for each of the 28 arms for the IDC and the float should be the CC
+            length. A simple example funtion:
 
-            >>> def example_IDC_CC_func(f0):
-                    '''
-                    Example function for IDC and CC
-                    f0 : float
-                        Resonant frequency in Hz.
-                    '''
-                    if f0 < 3.1e9:
-                        IDC_lengths = np.ones(28)*1900.0
-                        CC_length = 600.0
-                    else:
-                        IDC_lengths = np.ones(28)*1500.0
-                        CC_length = 300.0
+            >>> def example_IDC_CC_func(f0, Q_value):
+            ...     '''
+            ...     Example function for IDC and CC
+            ...     f0 : float
+            ...         Resonant frequency in Hz.
+            ...     QR : str
+            ...         The QR value
+            ...     '''
+            ...     if (f0 < 3.1e9) and (Q_value=="50k"):
+            ...         IDC_lengths = np.ones(28)*1900.0
+            ...         CC_length = 600.0
+            ...     else:
+            ...         IDC_lengths = np.ones(28)*1500.0
+            ...         CC_length = 300.0
+            ...
+            ...     # return IDC array, then CC seperately
+            ...     return IDC_lengths, CC_length
 
-                    # return IDC array, then CC seperately
-                    return IDC_lengths, CC_length
 
         Main_config_file_dict : dict
             dictionary containing individual dictionarys of config settings.
@@ -3454,6 +3485,10 @@ class SOUK_Functions:
 
         KwArgs
         ------
+        Q_value = "50k"
+            This is the QR value to use for the resonator in the
+            IDC_and_CC_function. By default this is "50k" string.
+
         IDC_and_frame_material = "IDC_Nb"
             The material to make the IDC and frame structure out of. By Default
             this is "IDC_Nb" which will make them out of the IDC_Nb material.
@@ -3499,8 +3534,20 @@ class SOUK_Functions:
             in the neccary place for the KID structure.
 
         add_backside_check=True
-            Whether or not to add a backside check cover in the
-            neccary place for the KID structure.
+            Whether or not to add a backside check cover in the neccary place
+            for the KID structure.
+
+        add_grnd_cutout_over_inductor=False
+            Whether or not to add a groundplane cutout over the inductive
+            meander. Defaulf is false, when True will create a cutout over the
+            mander that is oversived by 30um in all directions relative to the
+            center of the inductive meander.
+
+        add_SiN_dep_dielectric_cutout_over_inductor=False
+            Whether or not to add a SiN depositon cutout over the inductive
+            meander. Defaulf is false, when True will create a cutout over the
+            mander that is oversived by 20um in all directions relative to the
+            center of the inductive meander.
 
         return_configurator_points=False
             return a the points for use in the configurator.
@@ -3698,6 +3745,56 @@ class SOUK_Functions:
             [grnd_plane_cutout_width / 2, grnd_plane_cutout_start_height],
         ]
 
+        grnd_plane_inductor_cutout_offset_right = 30
+        grnd_plane_inductor_cutout_offset_left = 30
+        grnd_plane_inductor_cutout_offset_top = 30
+        grnd_plane_inductor_cutout_offset_bot = 30
+
+        grnd_plane_inductor_cutout_poly_points = [
+            # bot right, bot left, top left, top right
+            [
+                meander_path_points[5][0] + grnd_plane_inductor_cutout_offset_right,
+                meander_path_points[5][1] - grnd_plane_inductor_cutout_offset_bot,
+            ],
+            [
+                meander_path_points[8][0] - grnd_plane_inductor_cutout_offset_left,
+                meander_path_points[5][1] - grnd_plane_inductor_cutout_offset_bot,
+            ],
+            [
+                meander_path_points[8][0] - grnd_plane_inductor_cutout_offset_left,
+                meander_path_points[0][1] + grnd_plane_inductor_cutout_offset_top,
+            ],
+            [
+                meander_path_points[0][0] + grnd_plane_inductor_cutout_offset_right,
+                meander_path_points[0][1] + grnd_plane_inductor_cutout_offset_top,
+            ],
+        ]
+
+        SiN_dep_inductor_cutout_offset_right = 20
+        SiN_dep_inductor_cutout_offset_left = 20
+        SiN_dep_inductor_cutout_offset_top = 20
+        SiN_dep_inductor_cutout_offset_bot = 20
+
+        SiN_dep_inductor_cutout_poly_points = [
+            # bot right, bot left, top left, top right
+            [
+                meander_path_points[5][0] + SiN_dep_inductor_cutout_offset_right,
+                meander_path_points[5][1] - SiN_dep_inductor_cutout_offset_bot,
+            ],
+            [
+                meander_path_points[8][0] - SiN_dep_inductor_cutout_offset_left,
+                meander_path_points[5][1] - SiN_dep_inductor_cutout_offset_bot,
+            ],
+            [
+                meander_path_points[8][0] - SiN_dep_inductor_cutout_offset_left,
+                meander_path_points[0][1] + SiN_dep_inductor_cutout_offset_top,
+            ],
+            [
+                meander_path_points[0][0] + SiN_dep_inductor_cutout_offset_right,
+                meander_path_points[0][1] + SiN_dep_inductor_cutout_offset_top,
+            ],
+        ]
+
         SiN_dep_cutout_width = cutout_width + 20
         SiN_dep_cutout_height = cutout_height + 20
         SiN_dep_cutout_start_height = cutout_start_height - 10
@@ -3758,7 +3855,7 @@ class SOUK_Functions:
         ]
 
         # Getting the IDC and CC lengths from the function
-        IDCLs, CCL = IDC_and_CC_function(f0)
+        IDCLs, CCL = IDC_and_CC_function(f0, Q_value)
 
         # Adding the meander
 
@@ -3887,7 +3984,7 @@ class SOUK_Functions:
             left_arm.rotate(rot_angle, center=(x, y))
             self.Main.add(left_arm)
 
-        # Adding the Trim arms
+        # Adding the Trim arms.
         right_trim_arm = gdspy.Rectangle(
             [arm_start_x_right_side, trim_arm_start_y_right_side],
             [arm_start_x_right_side - trim_arm_length_right_side, trim_arm_start_y_right_side + trim_arm_lw],
@@ -3910,7 +4007,7 @@ class SOUK_Functions:
         left_trim_arm.rotate(rot_angle, center=(x, y))
         self.Main.add(left_trim_arm)
 
-        # Adding the Trim boxes for the trim arms at Trim lengths specified if non-zero
+        # Adding the Trim boxes for the trim arms at Trim lengths specified if non-zero.
         if trim_length != None:
             if (
                 trim_length < trim_arm_length_right_side and trim_length < trim_arm_length_left_side
@@ -3953,7 +4050,7 @@ class SOUK_Functions:
                 trim_box_for_left_trim_arm.rotate(rot_angle, center=(x, y))
                 self.Main.add(trim_box_for_left_trim_arm)
 
-        # Adding the cutout to the groundplane
+        # Adding the cutout to the groundplane.
         if add_grnd_cutout:
             if mirror:
                 new_grnd_plane_meander_cutout_poly_points = self.mirror_points_around_yaxis(grnd_plane_meander_cutout_poly_points)
@@ -3968,7 +4065,7 @@ class SOUK_Functions:
             grnd_plane_meander_cutout_poly = gdspy.Polygon(new_grnd_plane_meander_cutout_poly_points, **self.Nb_Groundplane)
             self.ground_plane_cutouts.add(grnd_plane_meander_cutout_poly)
 
-        # Adding the cutout to the Silicon DiOxide membrane
+        # Adding the cutout to the Silicon DiOxide membrane.
         if add_SiO_cutout:
             if mirror:
                 new_SiO_cutout_poly_points = self.mirror_points_around_yaxis(SiO_cutout_poly_points)
@@ -3979,7 +4076,7 @@ class SOUK_Functions:
             SiO_cutout_poly = gdspy.Polygon(new_SiO_cutout_poly_points, **self.Nb_Groundplane)
             self.silicon_oxide_cutouts.add(SiO_cutout_poly)
 
-        # Adding the cutout to the Silicon Nitride membrane
+        # Adding the cutout to the Silicon Nitride membrane.
         if add_SiN_membrane_cutout:
             if mirror:
                 new_SiN_membrane_cutout_poly_points = self.mirror_points_around_yaxis(SiN_membrane_cutout_poly_points)
@@ -3990,7 +4087,7 @@ class SOUK_Functions:
             SiN_membrane_cutout_poly = gdspy.Polygon(new_SiN_membrane_cutout_poly_points, **self.Nb_Groundplane)
             self.silicon_nitride_membrane_cutouts.add(SiN_membrane_cutout_poly)
 
-        # Adding the cutout to the SiN Dep layer
+        # Adding the cutout to the SiN Dep layer.
         if add_SiN_dep_dielectric_cutout:
             if mirror:
                 new_SiN_dep_cutout_poly_points = self.mirror_points_around_yaxis(SiN_dep_cutout_poly_points)
@@ -4001,7 +4098,7 @@ class SOUK_Functions:
             SiN_dep_cutout_poly = gdspy.Polygon(new_SiN_dep_cutout_poly_points, **self.SiN_dep)
             self.silicon_nitride_cutouts.add(SiN_dep_cutout_poly)
 
-        # Adding the backside check covers
+        # Adding the backside check covers.
         if add_backside_check:
             if mirror:
                 new_backside_check_cover_poly_points = self.mirror_points_around_yaxis(backside_check_cover_poly_points)
@@ -4014,6 +4111,37 @@ class SOUK_Functions:
             backside_check_cover_poly = gdspy.Polygon(new_backside_check_cover_poly_points, **self.Backside_Check)
             self.Main.add(backside_check_cover_poly)
 
+        # Adding the groundplane cutout over the inductive meander.
+        if add_grnd_cutout_over_inductor:
+            if mirror:
+                new_grnd_plane_inductor_cutout_poly_points = self.mirror_points_around_yaxis(grnd_plane_inductor_cutout_poly_points)
+                new_grnd_plane_inductor_cutout_poly_points = self.rotate_and_move_points_list(
+                    new_grnd_plane_inductor_cutout_poly_points, rot_angle, x, y
+                )
+            else:
+                new_grnd_plane_inductor_cutout_poly_points = self.rotate_and_move_points_list(
+                    grnd_plane_inductor_cutout_poly_points, rot_angle, x, y
+                )
+
+            grnd_plane_inductor_cutout_poly = gdspy.Polygon(new_grnd_plane_inductor_cutout_poly_points, **self.Nb_Groundplane)
+            self.ground_plane_cutouts.add(grnd_plane_inductor_cutout_poly)
+
+        # Adding the SiNdep cutout over the inductive meander.
+        if add_SiN_dep_dielectric_cutout_over_inductor:
+            if mirror:
+                new_SiN_dep_inductor_cutout_poly_points = self.mirror_points_around_yaxis(SiN_dep_inductor_cutout_poly_points)
+                new_SiN_dep_inductor_cutout_poly_points = self.rotate_and_move_points_list(
+                    new_SiN_dep_inductor_cutout_poly_points, rot_angle, x, y
+                )
+            else:
+                new_SiN_dep_inductor_cutout_poly_points = self.rotate_and_move_points_list(
+                    SiN_dep_inductor_cutout_poly_points, rot_angle, x, y
+                )
+
+            SiN_dep_inductor_cutout_poly = gdspy.Polygon(new_SiN_dep_inductor_cutout_poly_points, **self.SiN_dep)
+            self.silicon_nitride_cutouts.add(SiN_dep_inductor_cutout_poly)
+
+        # Return the configurator_points if specified else just return.
         if not return_configurator_points:
             return
 

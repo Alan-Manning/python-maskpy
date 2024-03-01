@@ -1,6 +1,34 @@
 import numpy as np
 import pandas as pd
-from mux_funcs import Q10k, Q50k
+from .mux_funcs import Q10k, Q50k
+
+
+ACCEPTABLE_Q_VALUE_INPUTS = ["10k", "50k"]
+
+
+def get_resonator_config_for_QR_value(Q_value: str) -> dict:
+    """Get the config for a resonator with a given Q_value.
+
+    Parameters
+    ----------
+    Q_value : str
+        The desired Q value for the resonator. Only accepts values "10k" or "50k".
+
+    Returns
+    -------
+    config : dict
+        This is a config dictionary with key value pairs as variable name and
+        variable values.
+    """
+    match Q_value:
+        case "10k":
+            config = Q10k.get_resonator_config()
+        case "50k":
+            config = Q50k.get_resonator_config()
+        case _:
+            raise (ValueError(f"Q_value argument is not acceptable. Valid inputs are: {ACCEPTABLE_Q_VALUE_INPUTS}"))
+
+    return config
 
 
 def get_evenly_spaced_freq_array(
@@ -8,6 +36,7 @@ def get_evenly_spaced_freq_array(
     Q_value: str,
     min_freq: float = 2000000000.0,
     max_freq: float = 4000000000.0,
+    rounding_precision: int | None = 2,
     order: list | None = None,
     csv_output: bool = False,
     csv_filename: str = "",
@@ -57,8 +86,6 @@ def get_evenly_spaced_freq_array(
     f0s : np.array
         The list of resonant frequencies for the array.
     """
-
-    acceptable_Q_value_inputs = ["10k", "50k"]
 
     f0s = np.linspace(min_freq, max_freq, number_of_resonators)
 
@@ -112,7 +139,7 @@ def get_evenly_spaced_freq_array(
                 case "50k":
                     IDC_array, CCL = Q50k.get_IDCLs_and_CCL_from_f0(f0, rounding_precision=rounding_precision)
                 case _:
-                    raise (ValueError(f"Q_value argument is not acceptable. Valid inputs are: {acceptable_Q_value_inputs}"))
+                    raise (ValueError(f"Q_value argument is not acceptable. Valid inputs are: {ACCEPTABLE_Q_VALUE_INPUTS}"))
             data_for_datafrane[i][0:3] = f0, i, CCL
             data_for_datafrane[i][3:] = IDC_array
 
@@ -160,14 +187,12 @@ def get_resonator_IDCLs_and_CCL_from_f0(f0: float, Q_value: str, rounding_precis
     CCL : float
         This is the length of the coupling capacitor in um.
     """
-    acceptable_Q_value_inputs = ["10k", "50k"]
-
     match Q_value:
         case "10k":
             IDC_array, CCL = Q10k.get_IDCLs_and_CCL_from_f0(f0, rounding_precision=rounding_precision)
         case "50k":
             IDC_array, CCL = Q50k.get_IDCLs_and_CCL_from_f0(f0, rounding_precision=rounding_precision)
         case _:
-            raise (ValueError(f"Q_value argument is not acceptable. Valid inputs are: {acceptable_Q_value_inputs}"))
+            raise (ValueError(f"Q_value argument is not acceptable. Valid inputs are: {ACCEPTABLE_Q_VALUE_INPUTS}"))
 
     return IDC_array, CCL
