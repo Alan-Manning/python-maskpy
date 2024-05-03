@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-properties>
+ <properties>
+  <expanded>false</expanded>
+  <frame-color>#ff9d9d</frame-color>
+  <fill-color>#ff9d9d</fill-color>
+  <frame-brightness>0</frame-brightness>
+  <fill-brightness>0</fill-brightness>
+  <dither-pattern>I5</dither-pattern>
+  <line-style/>
+  <valid>true</valid>
+  <visible>false</visible>
+  <transparent>false</transparent>
+  <width>1</width>
+  <marked>false</marked>
+  <xfill>false</xfill>
+  <animation>0</animation>
+  <name>[0] ALL_ONE_LAYER</name>
+  <source>'[0] ALL_ONE_LAYER' 0/0@1</source>
+ </properties>
+ <properties>
+  <expanded>false</expanded>
+  <frame-color>#ff80a8</frame-color>
+  <fill-color>#ff80a8</fill-color>
+  <frame-brightness>0</frame-brightness>
+  <fill-brightness>0</fill-brightness>
+  <dither-pattern>I9</dither-pattern>
+  <line-style/>
+  <valid>true</valid>
+  <visible>true</visible>
+  <transparent>false</transparent>
+  <width>1</width>
+  <marked>false</marked>
+  <xfill>false</xfill>
+  <animation>0</animation>
+  <name>[1] ALL_ONE_LAYER_NO_OUTER_TEXT</name>
+  <source>'[1] OUTER_FULL_COVER_CIRCLE' 1/0@1</source>
+ </properties>
+ <properties>
+  <expanded>false</expanded>
+  <frame-color>#9580ff</frame-color>
+  <fill-color>#9580ff</fill-color>
+  <frame-brightness>0</frame-brightness>
+  <fill-brightness>0</fill-brightness>
+  <dither-pattern>I9</dither-pattern>
+  <line-style/>
+  <valid>true</valid>
+  <visible>true</visible>
+  <transparent>false</transparent>
+  <width>1</width>
+  <marked>false</marked>
+  <xfill>false</xfill>
+  <animation>0</animation>
+  <name>[3] INNER_COVER_CIRCLE</name>
+  <source>'[3] OUTER_TEXT' 3/0@1</source>
+ </properties>
+ <properties>
+  <expanded>false</expanded>
+  <frame-color>#c080ff</frame-color>
+  <fill-color>#c080ff</fill-color>
+  <frame-brightness>0</frame-brightness>
+  <fill-brightness>0</fill-brightness>
+  <dither-pattern>I5</dither-pattern>
+  <line-style/>
+  <valid>true</valid>
+  <visible>false</visible>
+  <transparent>false</transparent>
+  <width>1</width>
+  <marked>false</marked>
+  <xfill>false</xfill>
+  <animation>0</animation>
+  <name>[2] OUTER_COVER_CIRCLE</name>
+  <source>'[2] OUTER_TEXT' 2/0@1</source>
+ </properties>
+ <properties>
+  <expanded>false</expanded>
+  <frame-color>#8086ff</frame-color>
+  <fill-color>#8086ff</fill-color>
+  <frame-brightness>0</frame-brightness>
+  <fill-brightness>0</fill-brightness>
+  <dither-pattern>I5</dither-pattern>
+  <line-style/>
+  <valid>true</valid>
+  <visible>false</visible>
+  <transparent>false</transparent>
+  <width>1</width>
+  <marked>false</marked>
+  <xfill>false</xfill>
+  <animation>0</animation>
+  <name>[4] INNER_TEXT</name>
+  <source>'[4] GROUND_AND_CIRC_TELESCOPE_CUTOUT' 4/0@1</source>
+ </properties>
+ <properties>
+  <expanded>false</expanded>
+  <frame-color>#80a8ff</frame-color>
+  <fill-color>#80a8ff</fill-color>
+  <frame-brightness>0</frame-brightness>
+  <fill-brightness>0</fill-brightness>
+  <dither-pattern>I5</dither-pattern>
+  <line-style/>
+  <valid>true</valid>
+  <visible>false</visible>
+  <transparent>false</transparent>
+  <width>1</width>
+  <marked>false</marked>
+  <xfill>false</xfill>
+  <animation>0</animation>
+  <name>[5] OUTER_TEXT</name>
+  <source>'[5] GROUND_AND_CIRC' 5/0@1</source>
+ </properties>
+ <properties>
+  <expanded>false</expanded>
+  <frame-color>#ff0000</frame-color>
+  <fill-color>#ff0000</fill-color>
+  <frame-brightness>0</frame-brightness>
+  <fill-brightness>0</fill-brightness>
+  <dither-pattern>I5</dither-pattern>
+  <line-style/>
+  <valid>true</valid>
+  <visible>false</visible>
+  <transparent>false</transparent>
+  <width>1</width>
+  <marked>false</marked>
+  <xfill>false</xfill>
+  <animation>0</animation>
+  <name>[6] GROUND_AND_CIRCLE_WITH_TELESCOPE_CUTOUT</name>
+  <source>'[6] TELESCOPE' 6/0@1</source>
+ </properties>
+ <properties>
+  <expanded>false</expanded>
+  <frame-color>#ff0080</frame-color>
+  <fill-color>#ff0080</fill-color>
+  <frame-brightness>0</frame-brightness>
+  <fill-brightness>0</fill-brightness>
+  <dither-pattern>I5</dither-pattern>
+  <line-style/>
+  <valid>true</valid>
+  <visible>false</visible>
+  <transparent>false</transparent>
+  <width>1</width>
+  <marked>false</marked>
+  <xfill>false</xfill>
+  <animation>0</animation>
+  <name>[7] GROUND_AND_CIRCLE</name>
+  <source>'[7] LIGHT_BEAMS' 7/0@1</source>
+ </properties>
+ <properties>
+  <expanded>false</expanded>
+  <frame-color>#ff00ff</frame-color>
+  <fill-color>#ff00ff</fill-color>
+  <frame-brightness>0</frame-brightness>
+  <fill-brightness>0</fill-brightness>
+  <dither-pattern>I5</dither-pattern>
+  <line-style/>
+  <valid>true</valid>
+  <visible>false</visible>
+  <transparent>false</transparent>
+  <width>1</width>
+  <marked>false</marked>
+  <xfill>false</xfill>
+  <animation>0</animation>
+  <name>[8] TELESCOPE</name>
+  <source>'[8] STARS' 8/0@1</source>
+ </properties>
+ <properties>
+  <expanded>false</expanded>
+  <frame-color>#8000ff</frame-color>
+  <fill-color>#8000ff</fill-color>
+  <frame-brightness>0</frame-brightness>
+  <fill-brightness>0</fill-brightness>
+  <dither-pattern>I5</dither-pattern>
+  <line-style/>
+  <valid>true</valid>
+  <visible>false</visible>
+  <transparent>false</transparent>
+  <width>1</width>
+  <marked>false</marked>
+  <xfill>false</xfill>
+  <animation>0</animation>
+  <name>[9] LIGHT_BEAMS</name>
+  <source>9/0@1</source>
+ </properties>
+ <properties>
+  <expanded>false</expanded>
+  <frame-color>#0000ff</frame-color>
+  <fill-color>#0000ff</fill-color>
+  <frame-brightness>0</frame-brightness>
+  <fill-brightness>0</fill-brightness>
+  <dither-pattern>I9</dither-pattern>
+  <line-style/>
+  <valid>true</valid>
+  <visible>false</visible>
+  <transparent>false</transparent>
+  <width>1</width>
+  <marked>false</marked>
+  <xfill>false</xfill>
+  <animation>0</animation>
+  <name>[10] STARS</name>
+  <source>'[10] STARS' 10/0@1</source>
+ </properties>
+ <name/>
+</layer-properties>

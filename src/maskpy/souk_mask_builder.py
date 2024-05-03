@@ -2,15 +2,17 @@
 # import concurrent.futures
 import copy
 import datetime
+import inspect
 import os
 import time
 import xml.etree.ElementTree as ET
+from typing import Callable
 
 import gdspy
 import numpy as np
 import pandas as pd
-
-# import math
+from matplotlib.font_manager import FontProperties
+from matplotlib.textpath import TextPath
 from numpy import cos as cos
 from numpy import pi as pi
 from numpy import sin as sin
@@ -19,8 +21,11 @@ from phidl import geometry as phgeom
 from shapely import geometry as shapely_geom
 from tqdm import tqdm
 
+from .souk_resonators import SoukResonatorType
+from .souk_resonators.utils import resonator_base_utils
 
-class SoukFuncs:
+
+class SoukMaskBuilder:
     """
     Functions for making elements for an SOUK gds mask.
 
@@ -870,6 +875,217 @@ class SoukFuncs:
 
         return final_wafer
 
+    def add_fancy_text(
+        self,
+        text: str,
+        x: float | int,
+        y: float | int,
+        size: float,
+        layer: dict[str, int],
+        rotation: float = 0.0,
+        horizontal_align: str = "start",
+        vertical_align: str = "baseline",
+        font_properties: FontProperties | None = None,
+        usetex: bool = False,
+        return_polyset: bool = False,
+        bb_cutout_in_grnd: bool = False,
+        bb_cutout_in_sin_dep: bool = False,
+    ) -> None | list[np.ndarray]:
+        """Add fancy text to the mask. This is text with a custon font face,
+        custom placement or rotation.
+
+        Parameters
+        ----------
+        text: str
+            The text to be added. This can include tex but will only be rendered
+            if the usetex argument is set to True.
+
+        x: float
+            The x position for the text to be drawn at.
+
+        y: float
+            The y position for the text to be drawn at.
+
+        size: float
+            The size of the text. This is the extent from the lowest descender
+            to the tallest ascender, so actual size of characters may differ
+            depending on the font face or stylings.
+
+        layer : dict
+            The layer number and datatype to add the text to. This dict should
+            contain the keys "layer" and "datatype".
+            e.g. '{"layer": 1, "datatype": 0}', or 'self.Aluminium'.
+
+        KwArgs
+        ------
+        rot : float = 0
+            The angle (**in radians**) the text should be rotated. positive
+            angles are rotations going counterclockwise. This rotaion is
+            applied about the x,y coordinate given and is done after any
+            translation of the text (i.e. different horizontal_align and
+            vertical_align than start and baseline respectively).
+
+        horizontal_align: str = "start",
+            The horizontal aligment of the text. This takes values "start",
+            "center", "end". Any other string will be interpreted as "start".
+            "start" is such that the leftmost end of the text aligns inline
+            with the x coordinate given. "end" aligns the rightmost end of the
+            text inline with the x coordinate given. "center" aligns the middle
+            of the leftmost and rightmost ends inline with the x coordinate
+            given.
+
+        vertical_align: str = "baseline",
+            The vertical aligment of the text. This takes values "baseline",
+            "above", "center", "below". Any other string will be interpreted as
+            "baseline". "baseline" will align the bottom of characters without
+            any descender inline with the y coordinate given. "above" will
+            align the bottom of the lowest descender inline with the y
+            coordinate given. "below" will align the top of the tallest
+            ascender inline with the y coordinate given. "center" will align
+            the middle of the lowest descender and the tallest ascender inline
+            with the y coordinate given.
+
+        font_properties: FontProperties | None = None,
+            This is any options for the format of the text, family, style etc.
+            See matplotlib.font_manager.FontProperties for all the options.
+            If None provided, this will use a default FontProperties,
+            font_properties=FontProperties(family="monospace", style="normal").
+
+        usetex: bool = False,
+            Whether to use tex rendering on the input text, defaults to False.
+
+        return_polyset: bool = False,
+            Whether to disable the drawing and return the polygon points used
+            to create the text. Defaults to False. When True this not draw
+            anything to the mask. Instead the polygon points that would have
+            been used to draw that text will be returned, this is a list of
+            NDArrays containing x,y coordinates.
+
+        bb_cutout_in_grnd: bool = False
+            Wether to make a cutout for the bounding box around the text in the
+            NbGroundplane layer. Default if False.
+
+        bb_cutout_in_sin_dep: bool = False
+            Wether to make a cutout for the bounding box around the text in the
+            SiN_dep layer. Default if False.
+        """
+
+        if font_properties is not None:
+            if isinstance(font_properties, FontProperties):
+                font_props = font_properties
+            else:
+                raise TypeError("font_properties argument should be of type FontProperties")
+        else:
+            font_props = FontProperties(family="monospace", style="normal")
+
+        full_text_path = TextPath((x, y), text, size=size, prop=font_props, usetex=usetex)
+        list_of_text_polygon_sets: list[gdspy.PolygonSet] = []
+
+        x_mins: list[float] = []
+        y_mins: list[float] = []
+        x_maxs: list[float] = []
+        y_maxs: list[float] = []
+        for points, path_code in full_text_path.iter_segments():
+            match path_code:
+                case full_text_path.MOVETO:
+                    curve = gdspy.Curve(*points)
+                case full_text_path.LINETO:
+                    curve.L(*points)
+                case full_text_path.CURVE3:
+                    curve.Q(*points)
+                case full_text_path.CURVE4:
+                    curve.C(*points)
+                case full_text_path.CLOSEPOLY:
+                    current_part_of_letter_polygon_points = curve.get_points()
+                    for text_polygon_points in list_of_text_polygon_sets:
+                        # if the first point of the current letter part is in
+                        # inside the previous letter part or the first point of
+                        # the previous letter part is inside the current letter
+                        # part then there is an ovelap and an xor needs to be
+                        # completed on these letter parts to cutout the shape.
+                        # i.e. cutout holes in a letter,for example 8, B, D, e.
+                        first_point_of_current_letter_part = current_part_of_letter_polygon_points[:1]
+                        first_point_of_previous_letter_part = text_polygon_points[:1]
+                        all_of_current_inside_previous = gdspy.inside(
+                            first_point_of_current_letter_part,
+                            [text_polygon_points],
+                        )[0]
+                        all_of_previous_inside_current = gdspy.inside(
+                            first_point_of_previous_letter_part,
+                            [current_part_of_letter_polygon_points],
+                        )[0]
+
+                        if all_of_current_inside_previous or all_of_previous_inside_current:
+                            previous_part_of_letter_polygon_points = list_of_text_polygon_sets.pop(-1)
+                            current_part_of_letter_polygon_points = gdspy.boolean(
+                                [previous_part_of_letter_polygon_points],
+                                [current_part_of_letter_polygon_points],
+                                "xor",
+                                max_points=0,
+                            ).polygons[0]
+
+                    list_of_text_polygon_sets.append(current_part_of_letter_polygon_points)
+
+                    x_mins.append(min([p[0] for p in current_part_of_letter_polygon_points]))
+                    x_maxs.append(max([p[0] for p in current_part_of_letter_polygon_points]))
+                    y_mins.append(min([p[1] for p in current_part_of_letter_polygon_points]))
+                    y_maxs.append(max([p[1] for p in current_part_of_letter_polygon_points]))
+
+        # horizontal aligment
+        match horizontal_align:
+            case "center":
+                delta_x = x - min(x_mins) - ((max(x_maxs) - min(x_mins)) / 2)
+            case "end":
+                delta_x = x - max(x_maxs)
+            case _:  # "start". or anything else is start
+                delta_x = x - min(x_mins)
+
+        match vertical_align:
+            case "above":
+                delta_y = y - min(y_mins)
+            case "center":
+                delta_y = y - min(y_mins) - ((max(y_maxs) - min(y_mins)) / 2)
+            case "below":
+                delta_y = y - max(y_maxs)
+            case _:  # "baseline". or anything else is baseline
+                delta_y = 0.0
+
+        text_polygon = gdspy.PolygonSet(list_of_text_polygon_sets, layer=layer["layer"], datatype=layer["datatype"])
+        text_polygon.translate(delta_x, delta_y)
+        if rotation != 0.0:
+            text_polygon.rotate(rotation, (x, y))
+
+        if bb_cutout_in_grnd:
+            bb_cutout_rect = gdspy.Rectangle(
+                (min(x_mins), min(y_mins)),
+                (min(x_mins), min(y_mins)),
+                layer=self.Nb_Groundplane["layer"],
+                datatype=self.Nb_Groundplane["datatype"],
+            )
+            if rotation != 0.0:
+                bb_cutout_rect.rotate(rotation, (x, y))
+
+            self.ground_plane_cutouts.add(bb_cutout_rect)
+
+        if bb_cutout_in_sin_dep:
+            bb_cutout_rect = gdspy.Rectangle(
+                (min(x_mins), min(y_mins)),
+                (min(x_mins), min(y_mins)),
+                layer=self.SiN_dep["layer"],
+                datatype=self.SiN_dep["datatype"],
+            )
+            if rotation != 0.0:
+                bb_cutout_rect.rotate(rotation, (x, y))
+
+            self.silicon_nitride_cutouts.add(bb_cutout_rect)
+
+        if return_polyset:
+            return text_polygon.polygons
+
+        self.Main.add(text_polygon)
+
+        return
+
     def make_test_chip_quadrent_boundary_and_get_horn_positions(
         self,
         quadrent_center_xy,
@@ -878,12 +1094,14 @@ class SoukFuncs:
         top_right_text="",
         top_left_text="",
         cardiff_logo=True,
+        souk_logo=True,
         top_right_label_window=True,
         return_outer_poly_points=False,
         add_center_pin_cutout=True,
         add_slotted_pin_cutout=True,
         dice_line_tab_positions=["left"],
         add_groundplane_under_test_chip=True,
+        add_SiN_dep_under_test_chip=False,
     ):
         """Make the boundary for a test chip quad. Adds a centered pin hole and
         slotted pin hole.
@@ -923,6 +1141,11 @@ class SoukFuncs:
             bottom right corner of the test chip quad. The size of this is
             specified in the config.
 
+        souk_logo : Boolean
+            Default True will add the souk logo to the nb groundplane in the
+            bottom right corner of the test chip quad. The size of this is
+            specified in the config.
+
         top_right_label_window : Boolean
             Default True will add a window cutout in the nb groundplane in the
             top right corner of the test chip quad. The size of this window
@@ -956,7 +1179,8 @@ class SoukFuncs:
             **Note This is only returned if return_outer_poly_points KwArg is
             True**.
         """
-
+        required_key = "test_chip_quad"
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
         config = Main_config_file_dict["test_chip_quad"]
 
         test_chip_quad_width = config["test_chip_quad_width"]  # 27000
@@ -985,6 +1209,14 @@ class SoukFuncs:
                 **self.Nb_Groundplane,
             )
             self.ground_plane_positives.add(groundplane_rect)
+
+        if add_SiN_dep_under_test_chip:
+            SiN_dep_rect = gdspy.Rectangle(
+                top_right_chip_corner,
+                bottom_left_chip_corner,
+                **self.SiN_dep,
+            )
+            self.silicon_nitride_positives.add(SiN_dep_rect)
 
         # Adding the bottom_left_text if True
         if bottom_left_text != "":
@@ -1062,6 +1294,18 @@ class SoukFuncs:
             ]
 
             self.add_cardiff_logo(logo_xy, cardiff_logo_size)
+
+        if souk_logo:
+            souk_logo_size = config["souk_logo_size"]  # 2000
+            souk_logo_offset_x = config["souk_logo_offset_x"]  # 3500
+            souk_logo_offset_y = config["souk_logo_offset_y"]  # 3500
+
+            logo_xy = [
+                bottom_right_chip_corner[0] - souk_logo_offset_x - (souk_logo_size / 2),
+                bottom_right_chip_corner[1] + souk_logo_offset_y + (souk_logo_size / 2),
+            ]
+
+            self.add_souk_logo(logo_xy, souk_logo_size, include_outer_ring_text=False, draw_all_in_one_layer=False)
 
         # Adding the dicing line in the groundplane and the tabbed dicing line
         self.add_test_chip_quad_tabbed_dicing_line(
@@ -1196,6 +1440,306 @@ class SoukFuncs:
 
         return
 
+    def add_so_logo(self, logo_xy, size=100, draw_all_in_one_layer=True):
+        """Adds the Simons Observatory logo as a positive in the ng groundplane
+        layer by default. Requires the logo gds file. Logo will be placed
+        centered on the logo_xy given.
+
+        Parameters
+        ----------
+        logo_xy : list
+            list containing the [x,y] coordinate for the center of where the
+            logo should be placed.
+
+        KwArgs
+        ------
+        size : int, flaot
+            The size of the sides of the cardiff logo square.
+            The default is 100.
+
+        draw_all_in_one_layer = True
+            Default True which will draw the entire logo as a cutout in the
+            NbGroundplane layer.
+        """
+        x = logo_xy[0]
+        y = logo_xy[1]
+
+        logo_file_name = "SO_Logo.gds"
+        logo_file_path = os.path.dirname(os.path.realpath(__file__))
+
+        try:
+            lib = gdspy.GdsLibrary(infile=(logo_file_path + "\\" + logo_file_name))
+        except FileNotFoundError:
+            print("Logo gds file '" + logo_file_name + "' not found.")
+            return
+        except Exception:
+            print("Issue with file " + logo_file_name + ".")
+            return
+
+        main_cell = lib.top_level()[0]
+        pol_dict = main_cell.get_polygons(by_spec=True)
+
+        main_text = pol_dict[(1, 0)]
+        mountains = pol_dict[(2, 0)]
+        telescope = pol_dict[(3, 0)]
+        outer_ring = pol_dict[(4, 0)]
+        light_beam = pol_dict[(5, 0)]
+        stars = pol_dict[(6, 0)]
+        outer_text = pol_dict[(7, 0)]
+        mountains_without_telescope = pol_dict[(8, 0)]
+        all_one_layer = pol_dict[(9, 0)]
+        all_one_layer_without_light_beam = pol_dict[(10, 0)]
+        full_cover_circle = pol_dict[(11, 0)]
+
+        if draw_all_in_one_layer:
+            default_size = 1800
+            scale_factor = size / default_size
+
+            for i in range(len(full_cover_circle)):
+                poly = gdspy.Polygon(full_cover_circle[i], **self.Nb_Groundplane)
+                poly.scale(scale_factor, scale_factor)
+                poly.translate(x, y)
+                self.ground_plane_cutouts.add(poly)
+
+            for i in range(len(all_one_layer)):
+                poly = gdspy.Polygon(all_one_layer[i], **self.Nb_Groundplane)
+                poly.scale(scale_factor, scale_factor)
+                poly.translate(x, y)
+                self.Main.add(poly)
+
+        # for i in range(len(box_polygons)):
+        #     poly = gdspy.Polygon(box_polygons[i], **self.Nb_Groundplane)
+        #     poly.scale(scale_factor, scale_factor)
+        #     poly.translate(x, y)
+        #     self.ground_plane_cutouts.add(poly)
+
+        return
+
+    def add_souk_logo(self, logo_xy, size=100, draw_all_in_one_layer=True, include_outer_ring_text=True):
+        """Adds the Simons Observatory United Kingdom logo as a positive in the
+        ng groundplane layer by default. Requires the logo gds file. Logo will
+        be placed centered on the logo_xy given.
+
+        Parameters
+        ----------
+        logo_xy : list
+            list containing the [x,y] coordinate for the center of where the
+            logo should be placed.
+
+        KwArgs
+        ------
+        size : int, flaot
+            The size of the sides of the cardiff logo square.
+            The default is 100.
+
+        draw_all_in_one_layer = True
+            Default True which will draw the entire logo as a cutout in the
+            NbGroundplane layer. When False this will draw the entire logo on
+            seperate predefined layers.
+
+        include_outer_ring_text = True
+            Default True which will draw the outer ring of text. When False
+            everything bar that outer text ring will be drawn.
+        """
+        x = logo_xy[0]
+        y = logo_xy[1]
+
+        logo_file_name = "SOUK_Logo.gds"
+        logo_file_path = os.path.dirname(os.path.realpath(__file__))
+
+        try:
+            lib = gdspy.GdsLibrary(infile=(logo_file_path + "\\" + logo_file_name))
+        except FileNotFoundError:
+            print("Logo gds file '" + logo_file_name + "' not found.")
+            return
+        except Exception:
+            print("Issue with file " + logo_file_name + ".")
+            return
+
+        main_cell = lib.top_level()[0]
+        pol_dict = main_cell.get_polygons(by_spec=True)
+
+        all_one_layer = pol_dict[(0, 0)]
+        all_one_layer_no_outer_text = pol_dict[(1, 0)]
+        outer_cover_circle = pol_dict[(2, 0)]
+        inner_cover_circle = pol_dict[(3, 0)]
+        inner_text = pol_dict[(4, 0)]
+        outer_text = pol_dict[(5, 0)]
+        ground_and_circle_with_telescope_cutout = pol_dict[(6, 0)]
+        ground_and_circle = pol_dict[(7, 0)]
+        telescope = pol_dict[(8, 0)]
+        light_beams = pol_dict[(9, 0)]
+        stars = pol_dict[(10, 0)]
+
+        if include_outer_ring_text:
+            default_size = 231
+        else:
+            default_size = 201.9525
+
+        scale_factor = size / default_size
+
+        if draw_all_in_one_layer and include_outer_ring_text:
+            for poly_points in outer_cover_circle:
+                poly = gdspy.Polygon(poly_points, **self.Nb_Groundplane)
+                poly.scale(scale_factor, scale_factor)
+                poly.translate(x, y)
+                self.ground_plane_cutouts.add(poly)
+
+            for poly_points in all_one_layer:
+                poly = gdspy.Polygon(poly_points, **self.Nb_Groundplane)
+                poly.scale(scale_factor, scale_factor)
+                poly.translate(x, y)
+                self.Main.add(poly)
+
+            return
+
+        if draw_all_in_one_layer and (not include_outer_ring_text):
+            for poly_points in inner_cover_circle:
+                poly = gdspy.Polygon(poly_points, **self.Nb_Groundplane)
+                poly.scale(scale_factor, scale_factor)
+                poly.translate(x, y)
+                self.ground_plane_cutouts.add(poly)
+
+            for poly_points in all_one_layer_no_outer_text:
+                poly = gdspy.Polygon(poly_points, **self.Nb_Groundplane)
+                poly.scale(scale_factor, scale_factor)
+                poly.translate(x, y)
+                self.Main.add(poly)
+
+            return
+
+        if include_outer_ring_text:
+            for poly_points in outer_cover_circle:
+                poly = gdspy.Polygon(poly_points, **self.Nb_Groundplane)
+                poly.scale(scale_factor, scale_factor)
+                poly.translate(x, y)
+                self.ground_plane_cutouts.add(poly)
+
+            for poly_points in outer_text:
+                poly = gdspy.Polygon(poly_points, **self.Nb_Groundplane)
+                poly.scale(scale_factor, scale_factor)
+                poly.translate(x, y)
+                self.Main.add(poly)
+        else:
+            for poly_points in inner_cover_circle:
+                poly = gdspy.Polygon(poly_points, **self.Nb_Groundplane)
+                poly.scale(scale_factor, scale_factor)
+                poly.translate(x, y)
+                self.ground_plane_cutouts.add(poly)
+
+        for poly_points in inner_text:
+            poly = gdspy.Polygon(poly_points, **self.Nb_Groundplane)
+            poly.scale(scale_factor, scale_factor)
+            poly.translate(x, y)
+            self.Main.add(poly)
+
+        for poly_points in ground_and_circle_with_telescope_cutout:
+            poly = gdspy.Polygon(poly_points, **self.Aluminium)
+            poly.scale(scale_factor, scale_factor)
+            poly.translate(x, y)
+            self.Main.add(poly)
+
+        for poly_points in telescope:
+            poly = gdspy.Polygon(poly_points, **self.Aluminium)
+            poly.scale(scale_factor, scale_factor)
+            poly.translate(x, y)
+            self.Main.add(poly)
+
+        for poly_points in light_beams:
+            poly = gdspy.Polygon(poly_points, **self.Aluminium)
+            poly.scale(scale_factor, scale_factor)
+            poly.translate(x, y)
+            self.Main.add(poly)
+
+        for poly_points in stars:
+            poly = gdspy.Polygon(poly_points, **self.Nb_Groundplane)
+            poly.scale(scale_factor, scale_factor)
+            poly.translate(x, y)
+            self.Main.add(poly)
+
+        return
+
+    def add_AM_signature(self, signature_xy, size=100, variant=0, draw_as_cutout=True):
+        """Adds Alan Manning signature as a negative in the nb groundplane
+        layer by default. Requires the signature gds file. Signiture will be
+        placed centered on the signature_xy given.
+
+        Parameters
+        ----------
+        signature_xy : list
+            list containing the [x,y] coordinate for the center of where the
+            signature should be placed.
+
+        KwArgs
+        ------
+        size : int, flaot
+            The size of the largest extent of the signature. Default is 100.
+
+        variant: int = 0
+            Default 0. Variants are 0 through 3. 0 draws both names side by
+            side. 1 draws both names vertically stacked. 2 is jsut the
+            forename. 3 is just the surname.
+
+        draw_as_cutout = True
+            Default True which will draw the signature as a cutout in the nb
+            groundplane. When False the signature is drawn as a aluminium
+            positve.
+        """
+        x = signature_xy[0]
+        y = signature_xy[1]
+
+        signature_file_name = "AM_signature.gds"
+        signature_file_path = os.path.dirname(os.path.realpath(__file__))
+
+        try:
+            lib = gdspy.GdsLibrary(infile=(signature_file_path + "\\" + signature_file_name))
+        except FileNotFoundError:
+            print("Logo gds file '" + signature_file_name + "' not found.")
+            return
+        except Exception:
+            print("Issue with file " + signature_file_name + ".")
+            return
+
+        main_cell = lib.top_level()[0]
+        pol_dict = main_cell.get_polygons(by_spec=True)
+
+        full_sig = pol_dict[(0, 0)]
+        stacked_sig = pol_dict[(1, 0)]
+        forename = pol_dict[(2, 0)]
+        surname = pol_dict[(3, 0)]
+
+        default_size = 889
+        polygons_for_variant = full_sig
+
+        match variant:
+            case 1:
+                default_size = 493
+                polygons_for_variant = stacked_sig
+            case 2:
+                default_size = 492
+                polygons_for_variant = forename
+            case 3:
+                default_size = 404
+                polygons_for_variant = surname
+            # case 0 or anything else is default.
+
+        scale_factor = size / default_size
+
+        if draw_as_cutout:
+            for poly_points in polygons_for_variant:
+                poly = gdspy.Polygon(poly_points, **self.Nb_Groundplane)
+                poly.scale(scale_factor, scale_factor)
+                poly.translate(x, y)
+                self.ground_plane_cutouts.add(poly)
+        else:
+            for poly_points in polygons_for_variant:
+                poly = gdspy.Polygon(poly_points, **self.Aluminium)
+                poly.scale(scale_factor, scale_factor)
+                poly.translate(x, y)
+                self.Main.add(poly)
+
+        return
+
     def add_MLA_marker(self, x, y, materials, inner_lw=5, outer_lw=10):
         """Adds a singe or series of square markers with a cross inside
         centered on the x,y coord given. Each subsequent material will make a
@@ -1291,7 +1835,7 @@ class SoukFuncs:
 
         return
 
-    def add_initial_allignment_markers(self, x, y, cross_length=300, linewidth=5, cutout_square_size=1000):
+    def add_initial_alignment_markers(self, x, y, cross_length=300, linewidth=5, cutout_square_size=1000):
         """Adds a singe MLA marker cross centered on the x,y coord given. Also
         adds a cutout window in layers that will be deposited ontop of this
         (namely Nb_groundplane).
@@ -1334,7 +1878,7 @@ class SoukFuncs:
         return
 
     def add_caliper_alignment_markers(self, x, y, rot, layer1, layer2, layer1_text, layer2_text):
-        """Adds Allignment Markers to the mask in a cutout centered on the x,y
+        """Adds Alignment Markers to the mask in a cutout centered on the x,y
         given. This consists of 2 main corsses and a series of calipers made
         from the two materials given.
 
@@ -1362,7 +1906,7 @@ class SoukFuncs:
         self.Main.add(bot_text)
         self.Main.add(top_text)
 
-        # adding the cutout around the alligment markers
+        # adding the cutout around the aligment markers
         cutout_around_marker = gdspy.Rectangle([-175.0, 300.0], [325.0, -300.0])
         cutout_around_marker.translate(x, y)
         self.ground_plane_cutouts.add(cutout_around_marker)
@@ -1592,10 +2136,7 @@ class SoukFuncs:
             + ((9.5 / 9) * label_height + 0.125)
         )
 
-        for (
-            j,
-            material,
-        ) in enumerate(materials):
+        for j, material in enumerate(materials):
             x_pos = init_x + j * (big_gap + (len(linewidths) - 1) * 50 + np.sum(linewidths) + (9.5 / 9) * label_height)
 
             for i, lw in enumerate(linewidths):
@@ -2635,7 +3176,13 @@ class SoukFuncs:
         #
         # return
 
-    def add_text_under_horn_in_test_chip_quad(self, text_string, horn_center_x, horn_center_y):
+    def add_text_under_horn_in_test_chip_quad(
+        self,
+        text_string: str,
+        horn_center_x: float | int,
+        horn_center_y: float | int,
+        font_props: FontProperties | None = None,
+    ):
         """Adds a label under the horn on the test chip quad with the text
         string given.
 
@@ -2647,19 +3194,68 @@ class SoukFuncs:
         horn_center_x, horn_center_x : float, int
             The x, and y coordinate respectively for the center of the horn
             that needs the text underneath.
+
+        KwArgs
+        ------
+        font_properties: FontProperties | None = None,
+            This is any options for the format of the text, family, style etc.
+            See matplotlib.font_manager.FontProperties for all the options.
+            If None provided, this will use a default FontProperties,
+            font_properties=FontProperties(family="monospace", style="normal").
         """
         x_offset_from_horn = 0
-        y_offset_from_horn = -3100
+        # y_offset_from_horn = -3100
+        y_offset_from_horn = -2800
+
         text_size = 300
 
-        under_text = gdspy.Text(
-            text_string, text_size, position=[horn_center_x + x_offset_from_horn, horn_center_y + y_offset_from_horn], **self.Aluminium
+        text_x = horn_center_x + x_offset_from_horn
+        text_y = horn_center_y + y_offset_from_horn
+
+        self.add_fancy_text(
+            text_string,
+            text_x,
+            text_y,
+            text_size,
+            layer=self.Aluminium,
+            horizontal_align="center",
+            vertical_align="below",
+            bb_cutout_in_grnd=True,
         )
-        under_text.translate(-abs(under_text.get_bounding_box()[0][0] - under_text.get_bounding_box()[1][0]) / 2, 0)
-        self.Main.add(under_text)
-        self.ground_plane_cutouts.add(
-            gdspy.Rectangle(under_text.get_bounding_box()[0], under_text.get_bounding_box()[1], **self.Nb_Groundplane)
-        )
+
+        # under_text = gdspy.Text(
+        #     text_string, text_size, position=[horn_center_x + x_offset_from_horn, horn_center_y + y_offset_from_horn], **self.Aluminium
+        # )
+        # under_text.translate(-abs(under_text.get_bounding_box()[0][0] - under_text.get_bounding_box()[1][0]) / 2, 0)
+        #
+        # self.Main.add(under_text)
+        # self.ground_plane_cutouts.add(
+        #     gdspy.Rectangle(under_text.get_bounding_box()[0], under_text.get_bounding_box()[1], **self.Nb_Groundplane)
+        # )
+
+        return
+
+    def validate_if_config_dict_has_required_keys(
+        self,
+        config_dict: dict[str, dict[str, float | int]],
+        required_keys: str | list[str],
+    ) -> None:
+        """Check if the config file has the required_keys, if the required_key
+        is not in the dict then this raises a KeyError with information about
+        what is missing.
+        """
+        keys_in_config_dict = config_dict.keys()
+
+        # Check if required_keys is just key string and if so wrap in list for next part.
+        if isinstance(required_keys, str):
+            required_keys = [required_keys]
+
+        # check each key needed is in the config file.
+        for required_key in required_keys:
+            if required_key not in keys_in_config_dict:
+                raise KeyError(
+                    f"\033[31mThe config dictionary does not contain the required_key '{required_key}'. This is needed for the {inspect.stack()[1].function}\033[0m"
+                )
 
         return
 
@@ -2693,12 +3289,11 @@ class SoukFuncs:
         try:
             df = pd.read_excel(live_file, sheet_name=sheet_name, header=None)
         except FileNotFoundError:
+            raise FileNotFoundError(f"Config file '{path + file_name}' not found.")
             print("Config file '" + path + file_name + "' not found.")
             return
         except Exception as e:
-            print("Issue with file " + path + file_name + ".")
-            print(e)
-            return
+            raise Exception(f"Issue with file '{path + file_name}'\n{e}")
 
         config_dict = {}
         for i in range(len(df)):
@@ -3015,6 +3610,8 @@ class SoukFuncs:
         return_configurator_points=False
             return a the points for use in the configurator.
         """
+        required_key = "antenna"
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
         config = Main_config_file_dict["antenna"]
 
         distance_from_center = config["distance_from_center"]
@@ -3160,16 +3757,16 @@ class SoukFuncs:
 
         return configurator_points
 
-    def add_4_KID_outers_and_arms_new(
+    def add_4_resonators_around_horn(
         self,
-        x,
-        y,
-        rel_kid_positions,
-        KID_Nos,
-        f0s,
-        IDC_and_CC_function,
-        Main_config_file_dict,
-        Q_values=["50k", "50k", "50k", "50k"],
+        x: float,
+        y: float,
+        rel_kid_positions: list[list[float | int]],
+        KID_Nos: list[int],
+        f0s: list[float | int],
+        IDC_and_CC_functions: list[Callable],
+        Main_config_file_dict: dict,
+        resonator_types: list[SoukResonatorType],
         IDC_and_frame_materials=None,
         meander_materials=None,
         trim_lengths=None,
@@ -3182,10 +3779,10 @@ class SoukFuncs:
         add_grnd_cutout_over_inductor=[False, False, False, False],
         add_SiN_dep_dielectric_cutout_over_inductor=[False, False, False, False],
     ):
-        """Adds the 4 KIDs geometries to the Main cell. The four kids are
+        """Adds the 4 resonator geometries to the mask. The four resonators are
         placed around the center x, y point in order top right, top left, bot
         right, bot left (as should be the order of the rel_kid_positions list).
-        The KIDs geometries are defined by the dimensions within the
+        The resonator geometries are defined by the dimensions within the
         Main_config_file_dict. By default it will, but optionally can choose
         not to, add all the neccessay cutouts for the structure.
 
@@ -3210,7 +3807,7 @@ class SoukFuncs:
             The resonant frequencies of the resonators. Should be in the same unit
             that the IDC_and_CC_function function takes.
 
-        IDC_and_CC_function : function
+        IDC_and_CC_functions : list[Callable]
             function for getting the IDC and CC lengths from a given f0. The
             function should take a frequency and QR value string as arguments
             and should return an array-like (28 long) and a single float
@@ -3218,7 +3815,7 @@ class SoukFuncs:
             for each of the 28 arms for the IDC and the float should be the CC
             length. A simple example funtion:
 
-            >>> def example_IDC_CC_func(f0, Q_value):
+            >>> def example_IDC_CC_func(f0):
             ...     '''
             ...     Example function for IDC and CC
             ...     f0 : float
@@ -3240,12 +3837,15 @@ class SoukFuncs:
             dictionary containing individual dictionarys of config settings.
             Requires "resonator".
 
+        resonator_types : list[SoukResonatorType]
+            This is the type of resonators to be drawn. The values accepted
+            here are members of the SoukResonatorType enum.
+            The order of the values passed in will be attributed to each KID
+            and should be the same order as the rel_kid_positions, TL, TR, BL,
+            BR.
+
         KwArgs
         ------
-        Q_values = ["50k", "50k", "50k", "50k"]
-            This is a list of the QR values to use for the resonators in the
-            IDC_and_CC_function. By default this is a list of 4 "50k" strings.
-
         IDC_and_frame_materials=None
             The material to make each of the IDC and frame structures out of.
             By Default this is None which will make all the KIDs out of the
@@ -3271,7 +3871,7 @@ class SoukFuncs:
             it should be a list of 4 ints of floats that define how long the
             trim arms should be on the mask. Trim boxes will be made to cover
             the trim arms to bring them down to the length specified.
-            **More info can be found in the add_kid method.**
+            **More info can be found in the add_resonator_original method.**
 
         add_grnd_cutout=[True, True, True, True]
             Whether or not to add a cutout in the Nb_Groundplane layer in the
@@ -3324,13 +3924,14 @@ class SoukFuncs:
             attributed to each KID and should be the same order as the
             rel_kid_positions, TL, TR, BL, BR.
         """
+        required_keys = ["resonator", "general"]
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_keys)
         config = Main_config_file_dict["resonator"]
 
         # Making the KID number text
         text_size = config["text_size"]  # 90
         text_x_offset = config["text_x_offset"]  # 800
         text_y_offset = config["text_y_offset"]  # 900
-        text_underline_height = config["text_underline_height"]  # 3
 
         rot_angles = [pi / 2, -pi / 2, pi / 2, -pi / 2]
         to_mirror = [True, False, False, True]
@@ -3350,49 +3951,111 @@ class SoukFuncs:
         elif not all(isinstance(x, (str)) for x in meander_materials):
             meander_materials = ["Al", "Al", "Al", "Al"]
 
-        for k in range(4):
-            kid_x = x + rel_kid_positions[k][0]
-            kid_y = y + rel_kid_positions[k][1]
+        for k, rel_kid_position in enumerate(rel_kid_positions):
+            kid_x = x + rel_kid_position[0]
+            kid_y = y + rel_kid_position[1]
 
-            self.add_kid(
-                kid_x,
-                kid_y,
-                rot_angles[k],
-                f0s[k],
-                IDC_and_CC_function,
-                Main_config_file_dict,
-                Q_value=Q_values[k],
-                mirror=to_mirror[k],
-                IDC_and_frame_material=IDC_and_frame_materials[k],
-                meander_material=meander_materials[k],
-                trim_length=trim_lengths[k],
-                add_grnd_cutout=add_grnd_cutout[k],
-                add_SiN_dep_dielectric_cutout=add_SiN_dep_dielectric_cutout[k],
-                add_SiO_cutout=add_SiO_cutout[k],
-                add_SiN_membrane_cutout=add_SiN_membrane_cutout[k],
-                add_backside_check=add_backside_check[k],
-                add_grnd_cutout_over_inductor=add_grnd_cutout_over_inductor[k],
-                add_SiN_dep_dielectric_cutout_over_inductor=add_SiN_dep_dielectric_cutout_over_inductor[k],
-            )
+            match resonator_types[k]:
+                case (
+                    SoukResonatorType.ORIGINAL_Q10K
+                    | SoukResonatorType.ORIGINAL_Q20K
+                    | SoukResonatorType.ORIGINAL_Q50K
+                    | SoukResonatorType.ORIGINAL_LONG_TRUNK_Q10K
+                    | SoukResonatorType.ORIGINAL_LONG_TRUNK_Q20K
+                    | SoukResonatorType.ORIGINAL_LONG_TRUNK_Q50K
+                ):
+                    self.add_resonator_original(
+                        kid_x,
+                        kid_y,
+                        rot_angles[k],
+                        f0s[k],
+                        IDC_and_CC_functions[k],
+                        Main_config_file_dict,
+                        mirror=to_mirror[k],
+                        IDC_and_frame_material=IDC_and_frame_materials[k],
+                        meander_material=meander_materials[k],
+                        trim_length=trim_lengths[k],
+                        add_grnd_cutout=add_grnd_cutout[k],
+                        add_SiN_dep_dielectric_cutout=add_SiN_dep_dielectric_cutout[k],
+                        add_SiO_cutout=add_SiO_cutout[k],
+                        add_SiN_membrane_cutout=add_SiN_membrane_cutout[k],
+                        add_backside_check=add_backside_check[k],
+                        add_grnd_cutout_over_inductor=add_grnd_cutout_over_inductor[k],
+                        add_SiN_dep_dielectric_cutout_over_inductor=add_SiN_dep_dielectric_cutout_over_inductor[k],
+                    )
+                case (
+                    SoukResonatorType.HIGH_VOLUME_V1_Q20K
+                    | SoukResonatorType.HIGH_VOLUME_V1_Q50K
+                    | SoukResonatorType.HIGH_VOLUME_V1_LONG_TRUNK_Q20K
+                    | SoukResonatorType.HIGH_VOLUME_V1_LONG_TRUNK_Q50K
+                ):
+                    self.add_resonator_high_volume_v1(
+                        kid_x,
+                        kid_y,
+                        rot_angles[k],
+                        f0s[k],
+                        IDC_and_CC_functions[k],
+                        Main_config_file_dict,
+                        mirror=to_mirror[k],
+                        IDC_and_frame_material=IDC_and_frame_materials[k],
+                        meander_material=meander_materials[k],
+                        trim_length=trim_lengths[k],
+                        add_grnd_cutout=add_grnd_cutout[k],
+                        add_SiN_dep_dielectric_cutout=add_SiN_dep_dielectric_cutout[k],
+                        add_SiO_cutout=add_SiO_cutout[k],
+                        add_SiN_membrane_cutout=add_SiN_membrane_cutout[k],
+                        add_backside_check=add_backside_check[k],
+                        add_grnd_cutout_over_inductor=add_grnd_cutout_over_inductor[k],
+                        add_SiN_dep_dielectric_cutout_over_inductor=add_SiN_dep_dielectric_cutout_over_inductor[k],
+                    )
+                case (
+                    SoukResonatorType.HIGH_VOLUME_V2_Q20K
+                    | SoukResonatorType.HIGH_VOLUME_V2_Q50K
+                    | SoukResonatorType.HIGH_VOLUME_V2_LONG_TRUNK_Q20K
+                    | SoukResonatorType.HIGH_VOLUME_V2_LONG_TRUNK_Q50K
+                ):
+                    self.add_resonator_high_volume_v2(
+                        kid_x,
+                        kid_y,
+                        rot_angles[k],
+                        f0s[k],
+                        IDC_and_CC_functions[k],
+                        Main_config_file_dict,
+                        mirror=to_mirror[k],
+                        IDC_and_frame_material=IDC_and_frame_materials[k],
+                        meander_material=meander_materials[k],
+                        trim_length=trim_lengths[k],
+                        add_grnd_cutout=add_grnd_cutout[k],
+                        add_SiN_dep_dielectric_cutout=add_SiN_dep_dielectric_cutout[k],
+                        add_SiO_cutout=add_SiO_cutout[k],
+                        add_SiN_membrane_cutout=add_SiN_membrane_cutout[k],
+                        add_backside_check=add_backside_check[k],
+                        add_grnd_cutout_over_inductor=add_grnd_cutout_over_inductor[k],
+                        add_SiN_dep_dielectric_cutout_over_inductor=add_SiN_dep_dielectric_cutout_over_inductor[k],
+                    )
+                case _:
+                    raise (ValueError(f"resonator_type does not have an associated draw function."))
 
             # Adding the KID number Text
-            undln_len = (text_size / 9) * (5 * len(str(KID_Nos[k])) + 3 * (len(str(KID_Nos[k])) - 1))
             x_sign = 1 if k in [0, 2] else -1
             y_sign = 1 if k in [0, 1] else -1
-            KID_text_label = gdspy.Text(
-                str(KID_Nos[k]), text_size, (kid_x + x_sign * text_x_offset, kid_y + y_sign * text_y_offset), **self.Aluminium
+            horizontal_align = "start" if x_sign == 1 else "end"
+            vertical_align = "above" if y_sign == 1 else "below"
+
+            font_props = FontProperties(family="monospace", style="normal")
+            kid_no_text_x = kid_x + x_sign * text_x_offset
+            kid_no_text_y = kid_y + y_sign * text_y_offset
+
+            self.add_fancy_text(
+                str(KID_Nos[k]),
+                kid_no_text_x,
+                kid_no_text_y,
+                text_size,
+                layer=self.Aluminium,
+                horizontal_align=horizontal_align,
+                vertical_align=vertical_align,
+                font_properties=font_props,
             )
-            underline = gdspy.Rectangle(
-                [kid_x + x_sign * text_x_offset, kid_y + y_sign * text_y_offset],
-                [kid_x + x_sign * text_x_offset + undln_len, kid_y + y_sign * text_y_offset + text_underline_height],
-                **self.Aluminium,
-            )
-            self.Main.add(KID_text_label)
-            self.ground_plane_cutouts.add([KID_text_label])
-            self.silicon_nitride_cutouts.add([KID_text_label])
-            self.Main.add(underline)
-            self.ground_plane_cutouts.add([underline])
-            self.silicon_nitride_cutouts.add([underline])
 
         # Making the SiN dep dielectric to go around resonators
         if add_SiN_dep_dielectric_around:
@@ -3408,7 +4071,7 @@ class SoukFuncs:
 
         return
 
-    def add_kid(
+    def add_resonator_original(
         self,
         x,
         y,
@@ -3416,7 +4079,6 @@ class SoukFuncs:
         f0,
         IDC_and_CC_function,
         Main_config_file_dict,
-        Q_value="50k",
         mirror=False,
         IDC_and_frame_material="IDC_Nb",
         meander_material="Al",
@@ -3454,30 +4116,32 @@ class SoukFuncs:
 
         IDC_and_CC_function : function
             function for getting the IDC and CC lengths from a given f0. The
-            function should take a frequency and QR value string as arguments
-            and should return an array-like (28 long) and a single float
-            **in this order**, the array-like should contain all the lengths
-            for each of the 28 arms for the IDC and the float should be the CC
+            function should take a frequency argument and should return an
+            array-like (28 long) and a single float **in this order**, the
+            array-like contains all the lengths for each of the 28 arms for the
+            IDC and the single float/int value contains the CC
             length. A simple example funtion:
 
-            >>> def example_IDC_CC_func(f0, Q_value):
-            ...     '''
-            ...     Example function for IDC and CC
-            ...     f0 : float
+            >>> def example_IDC_CC_func(
+            ...     f0: float | int
+            ...     )->tuple[list[float | int], float | int]:
+            ...     '''Example function for IDC and CC.
+            ...
+            ...     f0 : float | int
             ...         Resonant frequency in Hz.
-            ...     QR : str
-            ...         The QR value
+            ...     Returns
+            ...     -------
+            ...     IDC_lengths: list[float | int]
+            ...     CC_length: float | int
             ...     '''
-            ...     if (f0 < 3.1e9) and (Q_value=="50k"):
+            ...     if (f0 < 3.1e9):
             ...         IDC_lengths = np.ones(28)*1900.0
             ...         CC_length = 600.0
             ...     else:
             ...         IDC_lengths = np.ones(28)*1500.0
             ...         CC_length = 300.0
             ...
-            ...     # return IDC array, then CC seperately
             ...     return IDC_lengths, CC_length
-
 
         Main_config_file_dict : dict
             dictionary containing individual dictionarys of config settings.
@@ -3485,10 +4149,6 @@ class SoukFuncs:
 
         KwArgs
         ------
-        Q_value = "50k"
-            This is the QR value to use for the resonator in the
-            IDC_and_CC_function. By default this is "50k" string.
-
         IDC_and_frame_material = "IDC_Nb"
             The material to make the IDC and frame structure out of. By Default
             this is "IDC_Nb" which will make them out of the IDC_Nb material.
@@ -3559,6 +4219,8 @@ class SoukFuncs:
         meander_material_lookup = {"Al": self.Aluminium, "IDC_Nb": self.IDC_Nb, "Nb": self.Nb_Antenna}
         material_meander = meander_material_lookup[meander_material]
 
+        required_key = "resonator"
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
         config = Main_config_file_dict["resonator"]
 
         # config = resonator_config_dict
@@ -3583,10 +4245,16 @@ class SoukFuncs:
         meander_right_width_1 = config["meander_right_width_1"]  # 565
         meander_right_width_2 = config["meander_right_width_2"]  # 565
 
+        meander_step_back_from_frame = config["meander_step_back_from_frame"]  # TODO Add this to the config.
+
         meander_path_points = [
             [
                 (meander_bot_width / 2) - meander_right_width_1 + meander_right_width_2,
-                meander_lw + meander_right_height_1 + meander_right_height_2 + meander_right_height_3,
+                meander_lw
+                + meander_right_height_1
+                + meander_right_height_2
+                + meander_right_height_3
+                - meander_step_back_from_frame,  # TODO THIS MIGHT BE AN ERROR WHERE THE MEANDER_LW SHOULD BE (MEANDER_LW/2)
             ],
             [
                 (meander_bot_width / 2) - meander_right_width_1 + meander_right_width_2,
@@ -3595,8 +4263,8 @@ class SoukFuncs:
             [(meander_bot_width / 2) - meander_right_width_1, (meander_lw / 2) + meander_right_height_1 + meander_right_height_2],
             [(meander_bot_width / 2) - meander_right_width_1, (meander_lw / 2) + meander_right_height_1],
             [(meander_bot_width / 2), (meander_lw / 2) + meander_right_height_1],
-            [(meander_bot_width / 2), (meander_lw / 2)],
-            [-(meander_bot_width / 2), (meander_lw / 2)],
+            [(meander_bot_width / 2), (meander_lw / 2)],  # Mid right hand side
+            [-(meander_bot_width / 2), (meander_lw / 2)],  # Mid left hand side
             [-(meander_bot_width / 2), (meander_lw / 2) + meander_left_height_1],
             [-(meander_bot_width / 2) - meander_left_width_1, (meander_lw / 2) + meander_left_height_1],
             [-(meander_bot_width / 2) - meander_left_width_1, (meander_lw / 2) + meander_left_height_1 + meander_left_height_2],
@@ -3606,7 +4274,11 @@ class SoukFuncs:
             ],
             [
                 -(meander_bot_width / 2) - meander_left_width_1 + meander_left_width_2,
-                meander_lw + meander_left_height_1 + meander_left_height_2 + meander_left_height_3,
+                meander_lw
+                + meander_left_height_1
+                + meander_left_height_2
+                + meander_left_height_3
+                - meander_step_back_from_frame,  # TODO THIS MIGHT BE AN ERROR WHERE THE MEANDER_LW SHOULD BE (MEANDER_LW/2)
             ],
         ]
         # Making the meander ant pad
@@ -3657,30 +4329,85 @@ class SoukFuncs:
         frame_meander_cover_box_width = config["frame_meander_cover_box_width"]  # 5
         frame_meander_cover_box_height = config["frame_meander_cover_box_height"]  # 28
 
+        # extra_frame_meander_cover_box_width = config["extra_frame_meander_cover_box_width"]
+        # extra_frame_meander_cover_box_height = config["extra_frame_meander_cover_box_height"]
+        extra_frame_meander_cover_box_width_left = config["extra_frame_meander_cover_box_width_left"]
+        extra_frame_meander_cover_box_width_right = config["extra_frame_meander_cover_box_width_right"]
+        extra_frame_meander_cover_box_height_above = config["extra_frame_meander_cover_box_height_above"]
+        extra_frame_meander_cover_box_height_below = config["extra_frame_meander_cover_box_height_below"]
+
         meander_cover_box_right_points = [
-            [meander_path_points[0][0] - (frame_meander_cover_box_width / 2), meander_path_points[0][1] + frame_bot_lw],
+            [meander_path_points[0][0] - (frame_meander_cover_box_width / 2), frame_start_y + frame_bot_lw],
             [
                 meander_path_points[0][0] - (frame_meander_cover_box_width / 2),
-                meander_path_points[0][1] + frame_bot_lw - frame_meander_cover_box_height,
+                frame_start_y + frame_bot_lw - frame_meander_cover_box_height,
             ],
             [
                 meander_path_points[0][0] + (frame_meander_cover_box_width / 2),
-                meander_path_points[0][1] + frame_bot_lw - frame_meander_cover_box_height,
+                frame_start_y + frame_bot_lw - frame_meander_cover_box_height,
             ],
-            [meander_path_points[0][0] + (frame_meander_cover_box_width / 2), meander_path_points[0][1] + frame_bot_lw],
+            [meander_path_points[0][0] + (frame_meander_cover_box_width / 2), frame_start_y + frame_bot_lw],
         ]
 
         meander_cover_box_left_points = [
-            [meander_path_points[-1][0] - (frame_meander_cover_box_width / 2), meander_path_points[-1][1] + frame_bot_lw],
+            [meander_path_points[-1][0] - (frame_meander_cover_box_width / 2), frame_start_y + frame_bot_lw],
             [
                 meander_path_points[-1][0] - (frame_meander_cover_box_width / 2),
-                meander_path_points[-1][1] + frame_bot_lw - frame_meander_cover_box_height,
+                frame_start_y + frame_bot_lw - frame_meander_cover_box_height,
             ],
             [
                 meander_path_points[-1][0] + (frame_meander_cover_box_width / 2),
-                meander_path_points[-1][1] + frame_bot_lw - frame_meander_cover_box_height,
+                frame_start_y + frame_bot_lw - frame_meander_cover_box_height,
             ],
-            [meander_path_points[-1][0] + (frame_meander_cover_box_width / 2), meander_path_points[-1][1] + frame_bot_lw],
+            [meander_path_points[-1][0] + (frame_meander_cover_box_width / 2), frame_start_y + frame_bot_lw],
+        ]
+
+        meander_cover_box_right_end_center = [
+            (meander_cover_box_right_points[1][0] + meander_cover_box_right_points[2][0]) / 2,
+            (meander_cover_box_right_points[1][1] + meander_cover_box_right_points[2][1]) / 2,
+        ]
+
+        meander_cover_box_left_end_center = [
+            (meander_cover_box_left_points[1][0] + meander_cover_box_left_points[2][0]) / 2,
+            (meander_cover_box_left_points[1][1] + meander_cover_box_left_points[2][1]) / 2,
+        ]
+
+        extra_meander_cover_box_right_points = [
+            [
+                meander_cover_box_right_end_center[0] - extra_frame_meander_cover_box_width_left,
+                meander_cover_box_right_end_center[1] + extra_frame_meander_cover_box_height_above,
+            ],
+            [
+                meander_cover_box_right_end_center[0] - extra_frame_meander_cover_box_width_left,
+                meander_cover_box_right_end_center[1] - extra_frame_meander_cover_box_height_below,
+            ],
+            [
+                meander_cover_box_right_end_center[0] + extra_frame_meander_cover_box_width_right,
+                meander_cover_box_right_end_center[1] - extra_frame_meander_cover_box_height_below,
+            ],
+            [
+                meander_cover_box_right_end_center[0] + extra_frame_meander_cover_box_width_right,
+                meander_cover_box_right_end_center[1] + extra_frame_meander_cover_box_height_above,
+            ],
+        ]
+
+        extra_meander_cover_box_left_points = [
+            [
+                meander_cover_box_left_end_center[0] - extra_frame_meander_cover_box_width_left,
+                meander_cover_box_left_end_center[1] + extra_frame_meander_cover_box_height_above,
+            ],
+            [
+                meander_cover_box_left_end_center[0] - extra_frame_meander_cover_box_width_left,
+                meander_cover_box_left_end_center[1] - extra_frame_meander_cover_box_height_below,
+            ],
+            [
+                meander_cover_box_left_end_center[0] + extra_frame_meander_cover_box_width_right,
+                meander_cover_box_left_end_center[1] - extra_frame_meander_cover_box_height_below,
+            ],
+            [
+                meander_cover_box_left_end_center[0] + extra_frame_meander_cover_box_width_right,
+                meander_cover_box_left_end_center[1] + extra_frame_meander_cover_box_height_above,
+            ],
         ]
 
         # Making the coupler attachement
@@ -3734,9 +4461,11 @@ class SoukFuncs:
             coupler_frame_start_y + coupler_frame_left_height + coupler_gap + coupler_lw + cutout_top_offset
         ) - cutout_start_height
 
-        grnd_plane_cutout_width = cutout_width + 30
-        grnd_plane_cutout_height = cutout_height + 30
-        grnd_plane_cutout_start_height = cutout_start_height - 15
+        step_down_distance_between_layers = config["step_down_distance_between_layers"]  # 5
+
+        grnd_plane_cutout_width = cutout_width + (3 * (2 * step_down_distance_between_layers))
+        grnd_plane_cutout_height = cutout_height + (3 * (2 * step_down_distance_between_layers))
+        grnd_plane_cutout_start_height = cutout_start_height - (3 * step_down_distance_between_layers)
 
         grnd_plane_meander_cutout_poly_points = [
             [-grnd_plane_cutout_width / 2, grnd_plane_cutout_start_height],
@@ -3855,7 +4584,7 @@ class SoukFuncs:
         ]
 
         # Getting the IDC and CC lengths from the function
-        IDCLs, CCL = IDC_and_CC_function(f0, Q_value)
+        IDCLs, CCL = IDC_and_CC_function(f0)
 
         # Adding the meander
 
@@ -3894,6 +4623,30 @@ class SoukFuncs:
 
         meander_cover_box_left = gdspy.Polygon(new_meander_cover_box_left_points, **material_idc_and_frame)
         self.Main.add(meander_cover_box_left)
+
+        # Adding the extra meander frame overlap boxes
+        if mirror:
+            new_extra_meander_cover_box_right_points = self.mirror_points_around_yaxis(extra_meander_cover_box_right_points)
+            new_extra_meander_cover_box_right_points = self.rotate_and_move_points_list(
+                new_extra_meander_cover_box_right_points, rot_angle, x, y
+            )
+        else:
+            new_extra_meander_cover_box_right_points = self.rotate_and_move_points_list(
+                extra_meander_cover_box_right_points, rot_angle, x, y
+            )
+
+        extra_meander_cover_box_right = gdspy.Polygon(new_extra_meander_cover_box_right_points, **material_meander)
+        self.Main.add(extra_meander_cover_box_right)
+
+        if mirror:
+            new_extra_meander_cover_box_left_points = self.mirror_points_around_yaxis(extra_meander_cover_box_left_points)
+            new_extra_meander_cover_box_left_points = self.rotate_and_move_points_list(
+                new_extra_meander_cover_box_left_points, rot_angle, x, y
+            )
+        else:
+            new_extra_meander_cover_box_left_points = self.rotate_and_move_points_list(extra_meander_cover_box_left_points, rot_angle, x, y)
+        extra_meander_cover_box_left = gdspy.Polygon(new_extra_meander_cover_box_left_points, **material_meander)
+        self.Main.add(extra_meander_cover_box_left)
 
         # Adding the frame left and frame right
         if mirror:
@@ -4303,7 +5056,7 @@ class SoukFuncs:
             ],
             "end": [
                 new_meander_path_points[11][0],
-                new_meander_path_points[11][1],
+                new_meander_path_points[11][1] + meander_step_back_from_frame,
             ],
         }
 
@@ -4315,7 +5068,77 @@ class SoukFuncs:
             ],
             "end": [
                 new_meander_path_points[0][0],
+                new_meander_path_points[0][1] + meander_step_back_from_frame,
+            ],
+        }
+
+        configurator_points["meander_step_back_from_frame_left"] = {
+            "text": "meander_step_back_from_frame",
+            "start": [
+                new_meander_path_points[11][0],
+                new_meander_path_points[11][1],
+            ],
+            "end": [
+                new_meander_path_points[11][0],
+                new_meander_path_points[11][1] + meander_step_back_from_frame,
+            ],
+        }
+
+        configurator_points["meander_step_back_from_frame_right"] = {
+            "text": "meander_step_back_from_frame",
+            "start": [
+                new_meander_path_points[0][0],
                 new_meander_path_points[0][1],
+            ],
+            "end": [
+                new_meander_path_points[0][0],
+                new_meander_path_points[0][1] + meander_step_back_from_frame,
+            ],
+        }
+
+        configurator_points["extra_frame_meander_cover_box_width_left"] = {
+            "text": "extra_frame_meander_cover_box_width_left",
+            "start": [
+                new_extra_meander_cover_box_right_points[1][0] + extra_frame_meander_cover_box_width_left,
+                new_extra_meander_cover_box_right_points[1][1],
+            ],
+            "end": [
+                new_extra_meander_cover_box_right_points[1][0],
+                new_extra_meander_cover_box_right_points[1][1],
+            ],
+        }
+
+        configurator_points["extra_frame_meander_cover_box_width_right"] = {
+            "text": "extra_frame_meander_cover_box_width_right",
+            "start": [
+                new_extra_meander_cover_box_right_points[2][0] - extra_frame_meander_cover_box_width_right,
+                new_extra_meander_cover_box_right_points[2][1],
+            ],
+            "end": [
+                new_extra_meander_cover_box_right_points[2][0],
+                new_extra_meander_cover_box_right_points[2][1],
+            ],
+        }
+        configurator_points["extra_frame_meander_cover_box_height_above"] = {
+            "text": "extra_frame_meander_cover_box_height_above",
+            "start": [
+                new_extra_meander_cover_box_right_points[0][0],
+                new_extra_meander_cover_box_right_points[0][1] - extra_frame_meander_cover_box_height_above,
+            ],
+            "end": [
+                new_extra_meander_cover_box_right_points[0][0],
+                new_extra_meander_cover_box_right_points[0][1],
+            ],
+        }
+        configurator_points["extra_frame_meander_cover_box_height_below"] = {
+            "text": "extra_frame_meander_cover_box_height_below",
+            "start": [
+                new_extra_meander_cover_box_right_points[1][0],
+                new_extra_meander_cover_box_right_points[1][1] + extra_frame_meander_cover_box_height_below,
+            ],
+            "end": [
+                new_extra_meander_cover_box_right_points[1][0],
+                new_extra_meander_cover_box_right_points[1][1],
             ],
         }
 
@@ -4643,6 +5466,1825 @@ class SoukFuncs:
 
         return configurator_points
 
+    def add_resonator_high_volume_v1(
+        self,
+        x,
+        y,
+        rot_angle,
+        f0,
+        IDC_and_CC_function,
+        Main_config_file_dict,
+        mirror=False,
+        IDC_and_frame_material="IDC_Nb",
+        meander_material="Al",
+        trim_length=None,
+        add_grnd_cutout=True,
+        add_SiN_dep_dielectric_cutout=True,
+        add_SiO_cutout=True,
+        add_SiN_membrane_cutout=True,
+        add_backside_check=True,
+        add_grnd_cutout_over_inductor=False,
+        add_SiN_dep_dielectric_cutout_over_inductor=False,
+        return_configurator_points=False,
+    ):
+        """Adds the KID geometry to the Main cell athe the x,y cooardinate
+        given. The KID is placed where the base middle of the inductive meander
+        is at this x,y. The KID geometry is defined by the dimensions within
+        the Main_config_file_dict. By default it will, but optionally can
+        choose not to, add all the neccessay cutouts for the structure.
+
+        Parameters
+        ----------
+        x,y : float, int
+            The x,y coordinates to place the KID. This is the very bottom center
+            point of the inductive meander section.
+
+        rot_angle : float, int
+            The rotation angle (**in radians**) for the structure. Positive values
+            are anti-clockwise, negative is clockwise. The default rotation is with
+            the inductive meander at the bottom and coupler at the top with IDC
+            arms running horizontally.
+
+        f0 : float, int
+            The resonant frequency of the resonator. Should be in the same unit
+            that the IDC_and_CC_function function takes.
+
+        IDC_and_CC_function : function
+            function for getting the IDC and CC lengths from a given f0. The
+            function should take a frequency argument and should return an
+            array-like (28 long) and a single float **in this order**, the
+            array-like contains all the lengths for each of the 28 arms for the
+            IDC and the single float/int value contains the CC
+            length. A simple example funtion:
+
+            >>> def example_IDC_CC_func(
+            ...     f0: float | int
+            ...     )->tuple[list[float | int], float | int]:
+            ...     '''Example function for IDC and CC.
+            ...
+            ...     f0 : float | int
+            ...         Resonant frequency in Hz.
+            ...     Returns
+            ...     -------
+            ...     IDC_lengths: list[float | int]
+            ...     CC_length: float | int
+            ...     '''
+            ...     if (f0 < 3.1e9):
+            ...         IDC_lengths = np.ones(28)*1900.0
+            ...         CC_length = 600.0
+            ...     else:
+            ...         IDC_lengths = np.ones(28)*1500.0
+            ...         CC_length = 300.0
+            ...
+            ...     return IDC_lengths, CC_length
+
+
+        Main_config_file_dict : dict
+            dictionary containing individual dictionarys of config settings.
+            Requires "resonator".
+
+        KwArgs
+        ------
+        IDC_and_frame_material = "IDC_Nb"
+            The material to make the IDC and frame structure out of. By Default
+            this is "IDC_Nb" which will make them out of the IDC_Nb material.
+            This can take any of the values "IDC_Nb", "Nb", or "Al", which will
+            make the frame and IDC out of IDC_Nb, Nb_Antenna, or Aluminium
+            layers respectively.
+
+        meander_material = "Al"
+            The material to make the inductive meander structure out of. By
+            Default this is "Al" which will make it out of the Aluminium
+            material. This can take any of the values "Al", "IDC_Nb", or "Nb"
+            which will make the inductive meander out of Aluminium, IDC_Nb, or
+            Nb_Antenna layers respectively.
+
+        trim_length=None
+            When None nothing is done. When a float or int value is passed,
+            there will be a trim layer added which will overlap the trim
+            fingers to bring the trim fingers down to the length specified.
+            For example, if you pass trim_length=1500. There will be a trim box
+            added over both trim fingers that will make the length of the trim
+            fingers equal this 1500um value.
+
+        mirror=False
+            Whether the KID should be mirrored about the center vertical, **this
+            mirroring is done before any roation is applied**. By default
+            (with 0° ratation) the KID's coupler is attached on the left but when
+            mirror=True the coupler on the right.
+
+        add_grnd_cutout=True
+            Whether or not to add a cutout in the Nb_Groundplane layer in the
+            neccary place for the KID structure.
+
+        add_SiN_dep_dielectric_cutout=True
+            Whether or not to add a cutout in the SiN depositon layer in the
+            neccary place for the KID structure.
+
+        add_SiO_cutout=True
+            Whether or not to add a cutout in the Silicon Oxide layer in the
+            neccary place for the KID structure.
+
+        add_SiN_membrane_cutout=True
+            Whether or not to add a cutout in the Silicon Nitride membrane layer
+            in the neccary place for the KID structure.
+
+        add_backside_check=True
+            Whether or not to add a backside check cover in the neccary place
+            for the KID structure.
+
+        add_grnd_cutout_over_inductor=False
+            Whether or not to add a groundplane cutout over the inductive
+            meander. Defaulf is false, when True will create a cutout over the
+            mander that is oversived by 30um in all directions relative to the
+            center of the inductive meander.
+
+        add_SiN_dep_dielectric_cutout_over_inductor=False
+            Whether or not to add a SiN depositon cutout over the inductive
+            meander. Defaulf is false, when True will create a cutout over the
+            mander that is oversived by 20um in all directions relative to the
+            center of the inductive meander.
+
+        return_configurator_points=False
+            return a the points for use in the configurator.
+        """
+
+        IDC_and_frame_material_lookup = {"IDC_Nb": self.IDC_Nb, "Nb": self.Nb_Antenna, "Al": self.Aluminium}
+        material_idc_and_frame = IDC_and_frame_material_lookup[IDC_and_frame_material]
+
+        meander_material_lookup = {"Al": self.Aluminium, "IDC_Nb": self.IDC_Nb, "Nb": self.Nb_Antenna}
+        material_meander = meander_material_lookup[meander_material]
+
+        required_key = "resonator"
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
+        config = Main_config_file_dict["resonator"]
+
+        # config = resonator_config_dict
+
+        # Making the meander section
+        meander_lw = config["meander_lw"]
+        meander_corner_bend_radius = config["meander_corner_bend_radius"]
+
+        meander_bot_width = config["meander_bot_width"]
+
+        meander_right_height_1 = config["meander_right_height_1"]
+        meander_right_height_2 = config["meander_right_height_2"]
+        meander_right_height_3 = config["meander_right_height_3"]
+        meander_right_height_4 = config["meander_right_height_4"]
+
+        meander_left_height_1 = config["meander_left_height_1"]
+        meander_left_height_2 = config["meander_left_height_2"]
+        meander_left_height_3 = config["meander_left_height_3"]
+        meander_left_height_4 = config["meander_left_height_4"]
+
+        meander_left_width_1 = config["meander_left_width_1"]
+        meander_left_width_2 = config["meander_left_width_2"]
+        meander_left_width_3 = config["meander_left_width_3"]
+
+        meander_right_width_1 = config["meander_right_width_1"]
+        meander_right_width_2 = config["meander_right_width_2"]
+        meander_right_width_3 = config["meander_right_width_3"]
+
+        meander_step_back_from_frame = config["meander_step_back_from_frame"]  # TODO Add this to the config.
+
+        meander_path_points = [
+            # TopRight to TopLeft clockwise
+            [
+                (meander_bot_width / 2) - meander_right_width_1 - meander_right_width_2 + meander_right_width_3,
+                meander_lw
+                + meander_right_height_1
+                - meander_right_height_2
+                + meander_right_height_3
+                + meander_right_height_4
+                - meander_step_back_from_frame,
+            ],
+            [
+                (meander_bot_width / 2) - meander_right_width_1 - meander_right_width_2 + meander_right_width_3,
+                (meander_lw / 2) + meander_right_height_1 - meander_right_height_2 + meander_right_height_3,
+            ],
+            [
+                (meander_bot_width / 2) - meander_right_width_1 - meander_right_width_2,
+                (meander_lw / 2) + meander_right_height_1 - meander_right_height_2 + meander_right_height_3,
+            ],
+            [
+                (meander_bot_width / 2) - meander_right_width_1 - meander_right_width_2,
+                (meander_lw / 2) + meander_right_height_1 - meander_right_height_2,
+            ],
+            [(meander_bot_width / 2) - meander_right_width_1, (meander_lw / 2) + meander_right_height_1 - meander_right_height_2],
+            [(meander_bot_width / 2) - meander_right_width_1, (meander_lw / 2) + meander_right_height_1],
+            [(meander_bot_width / 2), (meander_lw / 2) + meander_right_height_1],
+            [(meander_bot_width / 2), (meander_lw / 2)],  # Mid right hand side
+            [-(meander_bot_width / 2), (meander_lw / 2)],  # Mid left hand side
+            [-(meander_bot_width / 2), (meander_lw / 2) + meander_left_height_1],
+            [-(meander_bot_width / 2) - meander_left_width_1, (meander_lw / 2) + meander_left_height_1],
+            [-(meander_bot_width / 2) - meander_left_width_1, (meander_lw / 2) + meander_left_height_1 - meander_left_height_2],
+            [
+                -(meander_bot_width / 2) - meander_left_width_1 - meander_left_width_2,
+                (meander_lw / 2) + meander_left_height_1 - meander_left_height_2,
+            ],
+            [
+                -(meander_bot_width / 2) - meander_left_width_1 - meander_left_width_2,
+                (meander_lw / 2) + meander_left_height_1 - meander_left_height_2 + meander_left_height_3,
+            ],
+            [
+                -(meander_bot_width / 2) - meander_left_width_1 - meander_left_width_2 + meander_left_width_3,
+                (meander_lw / 2) + meander_left_height_1 - meander_left_height_2 + meander_left_height_3,
+            ],
+            [
+                -(meander_bot_width / 2) - meander_left_width_1 - meander_left_width_2 + meander_left_width_3,
+                meander_lw
+                + meander_left_height_1
+                - meander_left_height_2
+                + meander_left_height_3
+                + meander_left_height_4
+                - meander_step_back_from_frame,
+            ],
+        ]
+
+        # Making the meander ant pad
+        ant_pad_box_width = config["ant_pad_box_width"]  # 5
+        ant_pad_box_height = config["ant_pad_box_height"]  # 10
+
+        ant_pad_box_points = [
+            [-ant_pad_box_width / 2, 0],
+            [-ant_pad_box_width / 2, -ant_pad_box_height],
+            [ant_pad_box_width / 2, -ant_pad_box_height],
+            [ant_pad_box_width / 2, 0],
+        ]
+
+        # Making the frame sections left and right
+        frame_bot_lw = config["frame_bot_lw"]  # 8
+        frame_bot_left_width = config["frame_bot_left_width"]  # 996
+        frame_bot_right_width = config["frame_bot_right_width"]  # 996
+
+        frame_left_lw = config["frame_left_lw"]  # 8
+        frame_left_height = config["frame_left_height"]  # 400
+
+        frame_right_lw = config["frame_right_lw"]  # 8
+        frame_right_height = config["frame_right_height"]  # 400
+
+        frame_start_y = meander_path_points[-1][1] + meander_step_back_from_frame
+        frame_left_start_x = meander_path_points[-1][0] + (meander_lw / 2)
+        frame_right_start_x = meander_path_points[0][0] - (meander_lw / 2)
+
+        frame_left_points = [
+            [frame_left_start_x, frame_start_y + frame_bot_lw],
+            [frame_left_start_x - frame_bot_left_width + frame_left_lw, frame_start_y + frame_bot_lw],
+            [frame_left_start_x - frame_bot_left_width + frame_left_lw, frame_start_y + frame_left_height],
+            [frame_left_start_x - frame_bot_left_width, frame_start_y + frame_left_height],
+            [frame_left_start_x - frame_bot_left_width, frame_start_y],
+            [frame_left_start_x, frame_start_y],
+        ]
+
+        frame_right_points = [
+            [frame_right_start_x, frame_start_y + frame_bot_lw],
+            [frame_right_start_x + frame_bot_right_width - frame_right_lw, frame_start_y + frame_bot_lw],
+            [frame_right_start_x + frame_bot_right_width - frame_right_lw, frame_start_y + frame_right_height],
+            [frame_right_start_x + frame_bot_right_width, frame_start_y + frame_right_height],
+            [frame_right_start_x + frame_bot_right_width, frame_start_y],
+            [frame_right_start_x, frame_start_y],
+        ]
+
+        # Making the pads the conect the meander to the frame
+        frame_meander_cover_box_width = config["frame_meander_cover_box_width"]  # 5
+        frame_meander_cover_box_height = config["frame_meander_cover_box_height"]  # 28
+
+        # extra_frame_meander_cover_box_width = config["extra_frame_meander_cover_box_width"]
+        # extra_frame_meander_cover_box_height = config["extra_frame_meander_cover_box_height"]
+
+        extra_frame_meander_cover_box_width_left = config["extra_frame_meander_cover_box_width_left"]
+        extra_frame_meander_cover_box_width_right = config["extra_frame_meander_cover_box_width_right"]
+        extra_frame_meander_cover_box_height_above = config["extra_frame_meander_cover_box_height_above"]
+        extra_frame_meander_cover_box_height_below = config["extra_frame_meander_cover_box_height_below"]
+
+        meander_cover_box_right_points = [
+            [meander_path_points[0][0] - (frame_meander_cover_box_width / 2), frame_start_y + frame_bot_lw],
+            [
+                meander_path_points[0][0] - (frame_meander_cover_box_width / 2),
+                frame_start_y + frame_bot_lw - frame_meander_cover_box_height,
+            ],
+            [
+                meander_path_points[0][0] + (frame_meander_cover_box_width / 2),
+                frame_start_y + frame_bot_lw - frame_meander_cover_box_height,
+            ],
+            [meander_path_points[0][0] + (frame_meander_cover_box_width / 2), frame_start_y + frame_bot_lw],
+        ]
+
+        meander_cover_box_left_points = [
+            [meander_path_points[-1][0] - (frame_meander_cover_box_width / 2), frame_start_y + frame_bot_lw],
+            [
+                meander_path_points[-1][0] - (frame_meander_cover_box_width / 2),
+                frame_start_y + frame_bot_lw - frame_meander_cover_box_height,
+            ],
+            [
+                meander_path_points[-1][0] + (frame_meander_cover_box_width / 2),
+                frame_start_y + frame_bot_lw - frame_meander_cover_box_height,
+            ],
+            [meander_path_points[-1][0] + (frame_meander_cover_box_width / 2), frame_start_y + frame_bot_lw],
+        ]
+
+        meander_cover_box_right_end_center = [
+            (meander_cover_box_right_points[1][0] + meander_cover_box_right_points[2][0]) / 2,
+            (meander_cover_box_right_points[1][1] + meander_cover_box_right_points[2][1]) / 2,
+        ]
+
+        meander_cover_box_left_end_center = [
+            (meander_cover_box_left_points[1][0] + meander_cover_box_left_points[2][0]) / 2,
+            (meander_cover_box_left_points[1][1] + meander_cover_box_left_points[2][1]) / 2,
+        ]
+
+        extra_meander_cover_box_right_points = [
+            [
+                meander_cover_box_right_end_center[0] - extra_frame_meander_cover_box_width_left,
+                meander_cover_box_right_end_center[1] + extra_frame_meander_cover_box_height_above,
+            ],
+            [
+                meander_cover_box_right_end_center[0] - extra_frame_meander_cover_box_width_left,
+                meander_cover_box_right_end_center[1] - extra_frame_meander_cover_box_height_below,
+            ],
+            [
+                meander_cover_box_right_end_center[0] + extra_frame_meander_cover_box_width_right,
+                meander_cover_box_right_end_center[1] - extra_frame_meander_cover_box_height_below,
+            ],
+            [
+                meander_cover_box_right_end_center[0] + extra_frame_meander_cover_box_width_right,
+                meander_cover_box_right_end_center[1] + extra_frame_meander_cover_box_height_above,
+            ],
+        ]
+
+        extra_meander_cover_box_left_points = [
+            [
+                meander_cover_box_left_end_center[0] - extra_frame_meander_cover_box_width_left,
+                meander_cover_box_left_end_center[1] + extra_frame_meander_cover_box_height_above,
+            ],
+            [
+                meander_cover_box_left_end_center[0] - extra_frame_meander_cover_box_width_left,
+                meander_cover_box_left_end_center[1] - extra_frame_meander_cover_box_height_below,
+            ],
+            [
+                meander_cover_box_left_end_center[0] + extra_frame_meander_cover_box_width_right,
+                meander_cover_box_left_end_center[1] - extra_frame_meander_cover_box_height_below,
+            ],
+            [
+                meander_cover_box_left_end_center[0] + extra_frame_meander_cover_box_width_right,
+                meander_cover_box_left_end_center[1] + extra_frame_meander_cover_box_height_above,
+            ],
+        ]
+
+        # Making the coupler attachement
+        coupler_frame_left_lw = config["coupler_frame_left_lw"]  # 10
+        coupler_frame_left_height = config["coupler_frame_left_height"]  # 39
+        coupler_frame_top_lw = config["coupler_frame_top_lw"]  # 3
+
+        coupler_frame_start_x = frame_left_start_x - frame_bot_left_width + (frame_left_lw / 2)
+        coupler_frame_start_y = frame_start_y + frame_left_height
+
+        # Making the IDC and trim arms
+        IDC_bot_arm_gap = config["IDC_bot_arm_gap"]  # 30
+        IDC_arm_gap = config["IDC_arm_gap"]  # 8
+        IDC_arm_lw = config["IDC_arm_lw"]  # 3
+        No_of_arms = config["No_of_arms"]  # 28
+
+        arm_start_x_left_side = frame_left_start_x - frame_bot_left_width + frame_left_lw
+        arm_start_x_right_side = frame_right_start_x + frame_bot_right_width - frame_right_lw
+
+        arm_start_y_right_side = frame_start_y + frame_bot_lw + IDC_bot_arm_gap + (IDC_arm_lw / 2)
+        arm_start_y_left_side = arm_start_y_right_side + IDC_arm_gap + IDC_arm_lw
+
+        trim_arm_offset_right_side = config["trim_arm_offset_right_side"]  # 380
+        trim_arm_offset_left_side = config["trim_arm_offset_left_side"]  # 389
+        trim_arm_lw = config["trim_arm_lw"]  # 3
+        trim_arm_length_right_side = config["trim_arm_length_right_side"]  # 1975
+        trim_arm_length_left_side = config["trim_arm_length_left_side"]  # 1975
+
+        trim_arm_start_y_right_side = frame_start_y + frame_bot_lw + trim_arm_offset_right_side
+        trim_arm_start_y_left_side = frame_start_y + frame_bot_lw + trim_arm_offset_left_side
+
+        # Making the coupler ataching to feedline
+        coupler_gap = config["coupler_gap"]  # 16
+        coupler_lw = config["coupler_lw"]  # 3
+        left_coupler_frame_to_feed_distance = config["left_coupler_frame_to_feed_distance"]  # 164
+
+        # Making the ground plane cutout
+        cutout_bot_offset = config["cutout_bot_offset"]  # 15
+        cutout_left_offset = config["cutout_left_offset"]  # 50
+        cutout_right_offset = config["cutout_right_offset"]  # 50
+        cutout_top_offset = config["cutout_top_offset"]  # 25
+
+        # grndpl_meander_cutout_width = config["grndpl_meander_cutout_width"]#80
+        # grndpl_meander_cutout_height = config["grndpl_meander_cutout_height"]#10
+
+        cutout_start_height = frame_start_y - cutout_bot_offset
+        cutout_width = (frame_right_start_x + frame_bot_right_width + cutout_right_offset) - (
+            frame_left_start_x - frame_bot_left_width - cutout_left_offset
+        )
+        cutout_height = (
+            coupler_frame_start_y + coupler_frame_left_height + coupler_gap + coupler_lw + cutout_top_offset
+        ) - cutout_start_height
+
+        step_down_distance_between_layers = config["step_down_distance_between_layers"]  # 5
+
+        grnd_plane_cutout_width = cutout_width + (3 * (2 * step_down_distance_between_layers))
+        grnd_plane_cutout_height = cutout_height + (3 * (2 * step_down_distance_between_layers))
+        grnd_plane_cutout_start_height = cutout_start_height - (3 * step_down_distance_between_layers)
+
+        grnd_plane_meander_cutout_poly_points = [
+            [-grnd_plane_cutout_width / 2, grnd_plane_cutout_start_height],
+            [-grnd_plane_cutout_width / 2, grnd_plane_cutout_start_height + grnd_plane_cutout_height],
+            [grnd_plane_cutout_width / 2, grnd_plane_cutout_start_height + grnd_plane_cutout_height],
+            [grnd_plane_cutout_width / 2, grnd_plane_cutout_start_height],
+        ]
+
+        grnd_plane_inductor_cutout_offset_right = 30
+        grnd_plane_inductor_cutout_offset_left = 30
+        grnd_plane_inductor_cutout_offset_top = 30
+        grnd_plane_inductor_cutout_offset_bot = 30
+
+        grnd_plane_inductor_cutout_poly_points = [
+            # bot right, bot left, top left, top right
+            [
+                meander_path_points[5][0] + grnd_plane_inductor_cutout_offset_right,
+                meander_path_points[5][1] - grnd_plane_inductor_cutout_offset_bot,
+            ],
+            [
+                meander_path_points[8][0] - grnd_plane_inductor_cutout_offset_left,
+                meander_path_points[5][1] - grnd_plane_inductor_cutout_offset_bot,
+            ],
+            [
+                meander_path_points[8][0] - grnd_plane_inductor_cutout_offset_left,
+                meander_path_points[0][1] + grnd_plane_inductor_cutout_offset_top,
+            ],
+            [
+                meander_path_points[0][0] + grnd_plane_inductor_cutout_offset_right,
+                meander_path_points[0][1] + grnd_plane_inductor_cutout_offset_top,
+            ],
+        ]
+
+        SiN_dep_inductor_cutout_offset_right = 20
+        SiN_dep_inductor_cutout_offset_left = 20
+        SiN_dep_inductor_cutout_offset_top = 20
+        SiN_dep_inductor_cutout_offset_bot = 20
+
+        SiN_dep_inductor_cutout_poly_points = [
+            # bot right, bot left, top left, top right
+            [
+                meander_path_points[5][0] + SiN_dep_inductor_cutout_offset_right,
+                meander_path_points[5][1] - SiN_dep_inductor_cutout_offset_bot,
+            ],
+            [
+                meander_path_points[8][0] - SiN_dep_inductor_cutout_offset_left,
+                meander_path_points[5][1] - SiN_dep_inductor_cutout_offset_bot,
+            ],
+            [
+                meander_path_points[8][0] - SiN_dep_inductor_cutout_offset_left,
+                meander_path_points[0][1] + SiN_dep_inductor_cutout_offset_top,
+            ],
+            [
+                meander_path_points[0][0] + SiN_dep_inductor_cutout_offset_right,
+                meander_path_points[0][1] + SiN_dep_inductor_cutout_offset_top,
+            ],
+        ]
+
+        SiN_dep_cutout_width = cutout_width + 20
+        SiN_dep_cutout_height = cutout_height + 20
+        SiN_dep_cutout_start_height = cutout_start_height - 10
+
+        SiN_dep_cutout_poly_points = [
+            [-SiN_dep_cutout_width / 2, SiN_dep_cutout_start_height],
+            [-SiN_dep_cutout_width / 2, SiN_dep_cutout_start_height + SiN_dep_cutout_height],
+            [SiN_dep_cutout_width / 2, SiN_dep_cutout_start_height + SiN_dep_cutout_height],
+            [SiN_dep_cutout_width / 2, SiN_dep_cutout_start_height],
+        ]
+
+        # Making the SiO cutout rect
+        SiO_stepdown_cutout_width = config["SiO_stepdown_cutout_width"]  # 110
+        SiO_stepdown_cutout_height = config["SiO_stepdown_cutout_height"]  # 39
+        SiO_cutout_width = cutout_width
+        SiO_cutout_height = cutout_height
+        SiO_cutout_start_height = cutout_start_height
+
+        SiO_cutout_poly_points = [
+            [-SiO_stepdown_cutout_width / 2, SiO_cutout_start_height + SiO_stepdown_cutout_height],
+            [-SiO_stepdown_cutout_width / 2, SiO_cutout_start_height],
+            [-SiO_cutout_width / 2, SiO_cutout_start_height],
+            [-SiO_cutout_width / 2, SiO_cutout_start_height + SiO_cutout_height],
+            [SiO_cutout_width / 2, SiO_cutout_start_height + SiO_cutout_height],
+            [SiO_cutout_width / 2, SiO_cutout_start_height],
+            [SiO_stepdown_cutout_width / 2, SiO_cutout_start_height],
+            [SiO_stepdown_cutout_width / 2, SiO_cutout_start_height + SiO_stepdown_cutout_height],
+        ]
+
+        # Making the SiN membrane cutout
+        SiN_membrane_stepdown_cutout_width = config["SiN_membrane_stepdown_cutout_width"]  # 100
+        SiN_membrane_stepdown_cutout_height = config["SiN_membrane_stepdown_cutout_height"]  # 36
+        SiN_membrane_cutout_width = cutout_width + 10
+        SiN_membrane_cutout_height = cutout_height + 10
+        SiN_membrane_cutout_start_height = cutout_start_height - 5
+
+        SiN_membrane_cutout_poly_points = [
+            [-SiN_membrane_stepdown_cutout_width / 2, SiN_membrane_cutout_start_height + SiN_membrane_stepdown_cutout_height],
+            [-SiN_membrane_stepdown_cutout_width / 2, SiN_membrane_cutout_start_height],
+            [-SiN_membrane_cutout_width / 2, SiN_membrane_cutout_start_height],
+            [-SiN_membrane_cutout_width / 2, SiN_membrane_cutout_start_height + SiN_membrane_cutout_height],
+            [SiN_membrane_cutout_width / 2, SiN_membrane_cutout_start_height + SiN_membrane_cutout_height],
+            [SiN_membrane_cutout_width / 2, SiN_membrane_cutout_start_height],
+            [SiN_membrane_stepdown_cutout_width / 2, SiN_membrane_cutout_start_height],
+            [SiN_membrane_stepdown_cutout_width / 2, SiN_membrane_cutout_start_height + SiN_membrane_stepdown_cutout_height],
+        ]
+
+        # Making the backside check covers
+        backside_check_cover_width = cutout_width
+        backside_check_cover_height = cutout_height
+        backside_check_cutout_start_height = cutout_start_height
+
+        backside_check_cover_poly_points = [
+            [-backside_check_cover_width / 2, backside_check_cutout_start_height],
+            [-backside_check_cover_width / 2, backside_check_cutout_start_height + backside_check_cover_height],
+            [backside_check_cover_width / 2, backside_check_cutout_start_height + backside_check_cover_height],
+            [backside_check_cover_width / 2, backside_check_cutout_start_height],
+        ]
+
+        # Getting the IDC and CC lengths from the function
+        IDCLs, CCL = IDC_and_CC_function(f0)
+
+        # Adding the meander
+
+        if mirror:
+            new_meander_path_points = self.mirror_points_around_yaxis(meander_path_points)
+            new_meander_path_points = self.rotate_and_move_points_list(new_meander_path_points, rot_angle, x, y)
+        else:
+            new_meander_path_points = self.rotate_and_move_points_list(meander_path_points, rot_angle, x, y)
+        meander_path = gdspy.FlexPath(
+            new_meander_path_points, meander_lw, corners="circular bend", bend_radius=meander_corner_bend_radius, **material_meander
+        )
+        meander_path_polygons = self.get_polys_from_flexpath(meander_path)
+        for i in range(len(meander_path_polygons)):
+            self.Main.add(gdspy.Polygon(meander_path_polygons[i], **material_meander))
+
+        # Adding the meander ant overlap box
+        new_ant_pad_box_points = self.rotate_and_move_points_list(ant_pad_box_points, rot_angle, x, y)
+        ant_pad_box = gdspy.Polygon(new_ant_pad_box_points, **material_meander)
+        self.Main.add(ant_pad_box)
+
+        # Adding the meander frame overlap boxes
+        if mirror:
+            new_meander_cover_box_right_points = self.mirror_points_around_yaxis(meander_cover_box_right_points)
+            new_meander_cover_box_right_points = self.rotate_and_move_points_list(new_meander_cover_box_right_points, rot_angle, x, y)
+        else:
+            new_meander_cover_box_right_points = self.rotate_and_move_points_list(meander_cover_box_right_points, rot_angle, x, y)
+
+        meander_cover_box_right = gdspy.Polygon(new_meander_cover_box_right_points, **material_idc_and_frame)
+        self.Main.add(meander_cover_box_right)
+
+        if mirror:
+            new_meander_cover_box_left_points = self.mirror_points_around_yaxis(meander_cover_box_left_points)
+            new_meander_cover_box_left_points = self.rotate_and_move_points_list(new_meander_cover_box_left_points, rot_angle, x, y)
+        else:
+            new_meander_cover_box_left_points = self.rotate_and_move_points_list(meander_cover_box_left_points, rot_angle, x, y)
+
+        meander_cover_box_left = gdspy.Polygon(new_meander_cover_box_left_points, **material_idc_and_frame)
+        self.Main.add(meander_cover_box_left)
+
+        # Adding the extra meander frame overlap boxes
+        if mirror:
+            new_extra_meander_cover_box_right_points = self.mirror_points_around_yaxis(extra_meander_cover_box_right_points)
+            new_extra_meander_cover_box_right_points = self.rotate_and_move_points_list(
+                new_extra_meander_cover_box_right_points, rot_angle, x, y
+            )
+        else:
+            new_extra_meander_cover_box_right_points = self.rotate_and_move_points_list(
+                extra_meander_cover_box_right_points, rot_angle, x, y
+            )
+
+        extra_meander_cover_box_right = gdspy.Polygon(new_extra_meander_cover_box_right_points, **material_meander)
+        self.Main.add(extra_meander_cover_box_right)
+
+        if mirror:
+            new_extra_meander_cover_box_left_points = self.mirror_points_around_yaxis(extra_meander_cover_box_left_points)
+            new_extra_meander_cover_box_left_points = self.rotate_and_move_points_list(
+                new_extra_meander_cover_box_left_points, rot_angle, x, y
+            )
+        else:
+            new_extra_meander_cover_box_left_points = self.rotate_and_move_points_list(extra_meander_cover_box_left_points, rot_angle, x, y)
+        extra_meander_cover_box_left = gdspy.Polygon(new_extra_meander_cover_box_left_points, **material_meander)
+        self.Main.add(extra_meander_cover_box_left)
+
+        # Adding the frame left and frame right
+        if mirror:
+            new_frame_left_points = self.mirror_points_around_yaxis(frame_left_points)
+            new_frame_left_points = self.rotate_and_move_points_list(new_frame_left_points, rot_angle, x, y)
+        else:
+            new_frame_left_points = self.rotate_and_move_points_list(frame_left_points, rot_angle, x, y)
+
+        frame_left_poly = gdspy.Polygon(new_frame_left_points, **material_idc_and_frame)
+        self.Main.add(frame_left_poly)
+
+        if mirror:
+            new_frame_right_points = self.mirror_points_around_yaxis(frame_right_points)
+            new_frame_right_points = self.rotate_and_move_points_list(new_frame_right_points, rot_angle, x, y)
+        else:
+            new_frame_right_points = self.rotate_and_move_points_list(frame_right_points, rot_angle, x, y)
+
+        frame_right_poly = gdspy.Polygon(new_frame_right_points, **material_idc_and_frame)
+        self.Main.add(frame_right_poly)
+
+        # Adding the coupler frame
+        coupler_frame_points = [
+            [coupler_frame_start_x - (coupler_frame_left_lw / 2), coupler_frame_start_y],
+            [coupler_frame_start_x - (coupler_frame_left_lw / 2), coupler_frame_start_y + coupler_frame_left_height],
+            [coupler_frame_start_x - (coupler_frame_left_lw / 2) + CCL, coupler_frame_start_y + coupler_frame_left_height],
+            [
+                coupler_frame_start_x - (coupler_frame_left_lw / 2) + CCL,
+                coupler_frame_start_y + coupler_frame_left_height - coupler_frame_top_lw,
+            ],
+            [coupler_frame_start_x + (coupler_frame_left_lw / 2), coupler_frame_start_y + coupler_frame_left_height - coupler_frame_top_lw],
+            [coupler_frame_start_x + (coupler_frame_left_lw / 2), coupler_frame_start_y],
+        ]
+        if mirror:
+            new_coupler_frame_points = self.mirror_points_around_yaxis(coupler_frame_points)
+            new_coupler_frame_points = self.rotate_and_move_points_list(new_coupler_frame_points, rot_angle, x, y)
+        else:
+            new_coupler_frame_points = self.rotate_and_move_points_list(coupler_frame_points, rot_angle, x, y)
+
+        coupler_frame_poly = gdspy.Polygon(new_coupler_frame_points, **material_idc_and_frame)
+        self.Main.add(coupler_frame_poly)
+
+        # Adding the coupler arm
+        coupler_arm_points = [
+            [
+                coupler_frame_start_x - (coupler_frame_left_lw / 2) - left_coupler_frame_to_feed_distance,
+                coupler_frame_start_y + coupler_frame_left_height + coupler_gap,
+            ],
+            [coupler_frame_start_x - (coupler_frame_left_lw / 2) + CCL, coupler_frame_start_y + coupler_frame_left_height + coupler_gap],
+            [
+                coupler_frame_start_x - (coupler_frame_left_lw / 2) + CCL,
+                coupler_frame_start_y + coupler_frame_left_height + coupler_gap + coupler_lw,
+            ],
+            [
+                coupler_frame_start_x - (coupler_frame_left_lw / 2) - left_coupler_frame_to_feed_distance,
+                coupler_frame_start_y + coupler_frame_left_height + coupler_gap + coupler_lw,
+            ],
+        ]
+        if mirror:
+            new_coupler_arm_points = self.mirror_points_around_yaxis(coupler_arm_points)
+            new_coupler_arm_points = self.rotate_and_move_points_list(new_coupler_arm_points, rot_angle, x, y)
+        else:
+            new_coupler_arm_points = self.rotate_and_move_points_list(coupler_arm_points, rot_angle, x, y)
+
+        coupler_arm_poly = gdspy.Polygon(new_coupler_arm_points, **self.Nb_Antenna)
+        self.Main.add(coupler_arm_poly)
+
+        # Adding the IDC arms
+        for i in range(0, No_of_arms, 2):
+            right_arm = gdspy.Rectangle(
+                [arm_start_x_right_side, arm_start_y_right_side - (IDC_arm_lw / 2) + (i * (IDC_arm_gap + IDC_arm_lw))],
+                [arm_start_x_right_side - IDCLs[-(i + 1)], arm_start_y_right_side + (IDC_arm_lw / 2) + (i * (IDC_arm_gap + IDC_arm_lw))],
+                **material_idc_and_frame,
+            )
+            right_arm.translate(x, y)
+            if mirror:
+                right_arm.mirror([x, y], [x, y + 10])
+            right_arm.rotate(rot_angle, center=(x, y))
+            self.Main.add(right_arm)
+
+            left_arm = gdspy.Rectangle(
+                [arm_start_x_left_side, arm_start_y_left_side - (IDC_arm_lw / 2) + (i * (IDC_arm_gap + IDC_arm_lw))],
+                [arm_start_x_left_side + IDCLs[-(i + 2)], arm_start_y_left_side + (IDC_arm_lw / 2) + (i * (IDC_arm_gap + IDC_arm_lw))],
+                **material_idc_and_frame,
+            )
+            left_arm.translate(x, y)
+            if mirror:
+                left_arm.mirror([x, y], [x, y + 10])
+            left_arm.rotate(rot_angle, center=(x, y))
+            self.Main.add(left_arm)
+
+        # Adding the Trim arms.
+        right_trim_arm = gdspy.Rectangle(
+            [arm_start_x_right_side, trim_arm_start_y_right_side],
+            [arm_start_x_right_side - trim_arm_length_right_side, trim_arm_start_y_right_side + trim_arm_lw],
+            **material_idc_and_frame,
+        )
+        right_trim_arm.translate(x, y)
+        if mirror:
+            right_trim_arm.mirror([x, y], [x, y + 10])
+        right_trim_arm.rotate(rot_angle, center=(x, y))
+        self.Main.add(right_trim_arm)
+
+        left_trim_arm = gdspy.Rectangle(
+            [arm_start_x_left_side, trim_arm_start_y_left_side],
+            [arm_start_x_left_side + trim_arm_length_left_side, trim_arm_start_y_left_side + trim_arm_lw],
+            **material_idc_and_frame,
+        )
+        left_trim_arm.translate(x, y)
+        if mirror:
+            left_trim_arm.mirror([x, y], [x, y + 10])
+        left_trim_arm.rotate(rot_angle, center=(x, y))
+        self.Main.add(left_trim_arm)
+
+        # Adding the Trim boxes for the trim arms at Trim lengths specified if non-zero.
+        if trim_length != None:
+            if (
+                trim_length < trim_arm_length_right_side and trim_length < trim_arm_length_left_side
+            ):  # does not add a trim box if the trim length is longer than full length arm.
+                inner_width = arm_start_x_right_side - arm_start_x_left_side
+
+                trim_box_width = 3 * trim_arm_lw  # 6
+                trim_box_length_overhang = (inner_width - trim_arm_length_right_side) / 2
+                trim_box_for_right_trim_arm = gdspy.Rectangle(
+                    [
+                        arm_start_x_right_side - trim_arm_length_right_side - trim_box_length_overhang,
+                        trim_arm_start_y_right_side + (trim_arm_lw / 2) - (trim_box_width / 2),
+                    ],
+                    [
+                        arm_start_x_left_side + (inner_width - trim_length),
+                        trim_arm_start_y_right_side + (trim_arm_lw / 2) + (trim_box_width / 2),
+                    ],
+                    **self.TrimLayer,
+                )
+                trim_box_for_right_trim_arm.translate(x, y)
+                if mirror:
+                    trim_box_for_right_trim_arm.mirror([x, y], [x, y + 10])
+                trim_box_for_right_trim_arm.rotate(rot_angle, center=(x, y))
+                self.Main.add(trim_box_for_right_trim_arm)
+
+                trim_box_for_left_trim_arm = gdspy.Rectangle(
+                    [
+                        arm_start_x_left_side + trim_arm_length_left_side + trim_box_length_overhang,
+                        trim_arm_start_y_left_side + (trim_arm_lw / 2) - (trim_box_width / 2),
+                    ],
+                    [
+                        arm_start_x_right_side - (inner_width - trim_length),
+                        trim_arm_start_y_left_side + (trim_arm_lw / 2) + (trim_box_width / 2),
+                    ],
+                    **self.TrimLayer,
+                )
+                trim_box_for_left_trim_arm.translate(x, y)
+                if mirror:
+                    trim_box_for_left_trim_arm.mirror([x, y], [x, y + 10])
+                trim_box_for_left_trim_arm.rotate(rot_angle, center=(x, y))
+                self.Main.add(trim_box_for_left_trim_arm)
+
+        # Adding the cutout to the groundplane.
+        if add_grnd_cutout:
+            if mirror:
+                new_grnd_plane_meander_cutout_poly_points = self.mirror_points_around_yaxis(grnd_plane_meander_cutout_poly_points)
+                new_grnd_plane_meander_cutout_poly_points = self.rotate_and_move_points_list(
+                    new_grnd_plane_meander_cutout_poly_points, rot_angle, x, y
+                )
+            else:
+                new_grnd_plane_meander_cutout_poly_points = self.rotate_and_move_points_list(
+                    grnd_plane_meander_cutout_poly_points, rot_angle, x, y
+                )
+
+            grnd_plane_meander_cutout_poly = gdspy.Polygon(new_grnd_plane_meander_cutout_poly_points, **self.Nb_Groundplane)
+            self.ground_plane_cutouts.add(grnd_plane_meander_cutout_poly)
+
+        # Adding the cutout to the Silicon DiOxide membrane.
+        if add_SiO_cutout:
+            if mirror:
+                new_SiO_cutout_poly_points = self.mirror_points_around_yaxis(SiO_cutout_poly_points)
+                new_SiO_cutout_poly_points = self.rotate_and_move_points_list(new_SiO_cutout_poly_points, rot_angle, x, y)
+            else:
+                new_SiO_cutout_poly_points = self.rotate_and_move_points_list(SiO_cutout_poly_points, rot_angle, x, y)
+
+            SiO_cutout_poly = gdspy.Polygon(new_SiO_cutout_poly_points, **self.Nb_Groundplane)
+            self.silicon_oxide_cutouts.add(SiO_cutout_poly)
+
+        # Adding the cutout to the Silicon Nitride membrane.
+        if add_SiN_membrane_cutout:
+            if mirror:
+                new_SiN_membrane_cutout_poly_points = self.mirror_points_around_yaxis(SiN_membrane_cutout_poly_points)
+                new_SiN_membrane_cutout_poly_points = self.rotate_and_move_points_list(new_SiN_membrane_cutout_poly_points, rot_angle, x, y)
+            else:
+                new_SiN_membrane_cutout_poly_points = self.rotate_and_move_points_list(SiN_membrane_cutout_poly_points, rot_angle, x, y)
+
+            SiN_membrane_cutout_poly = gdspy.Polygon(new_SiN_membrane_cutout_poly_points, **self.Nb_Groundplane)
+            self.silicon_nitride_membrane_cutouts.add(SiN_membrane_cutout_poly)
+
+        # Adding the cutout to the SiN Dep layer.
+        if add_SiN_dep_dielectric_cutout:
+            if mirror:
+                new_SiN_dep_cutout_poly_points = self.mirror_points_around_yaxis(SiN_dep_cutout_poly_points)
+                new_SiN_dep_cutout_poly_points = self.rotate_and_move_points_list(new_SiN_dep_cutout_poly_points, rot_angle, x, y)
+            else:
+                new_SiN_dep_cutout_poly_points = self.rotate_and_move_points_list(SiN_dep_cutout_poly_points, rot_angle, x, y)
+
+            SiN_dep_cutout_poly = gdspy.Polygon(new_SiN_dep_cutout_poly_points, **self.SiN_dep)
+            self.silicon_nitride_cutouts.add(SiN_dep_cutout_poly)
+
+        # Adding the backside check covers.
+        if add_backside_check:
+            if mirror:
+                new_backside_check_cover_poly_points = self.mirror_points_around_yaxis(backside_check_cover_poly_points)
+                new_backside_check_cover_poly_points = self.rotate_and_move_points_list(
+                    new_backside_check_cover_poly_points, rot_angle, x, y
+                )
+            else:
+                new_backside_check_cover_poly_points = self.rotate_and_move_points_list(backside_check_cover_poly_points, rot_angle, x, y)
+
+            backside_check_cover_poly = gdspy.Polygon(new_backside_check_cover_poly_points, **self.Backside_Check)
+            self.Main.add(backside_check_cover_poly)
+
+        # Adding the groundplane cutout over the inductive meander.
+        if add_grnd_cutout_over_inductor:
+            if mirror:
+                new_grnd_plane_inductor_cutout_poly_points = self.mirror_points_around_yaxis(grnd_plane_inductor_cutout_poly_points)
+                new_grnd_plane_inductor_cutout_poly_points = self.rotate_and_move_points_list(
+                    new_grnd_plane_inductor_cutout_poly_points, rot_angle, x, y
+                )
+            else:
+                new_grnd_plane_inductor_cutout_poly_points = self.rotate_and_move_points_list(
+                    grnd_plane_inductor_cutout_poly_points, rot_angle, x, y
+                )
+
+            grnd_plane_inductor_cutout_poly = gdspy.Polygon(new_grnd_plane_inductor_cutout_poly_points, **self.Nb_Groundplane)
+            self.ground_plane_cutouts.add(grnd_plane_inductor_cutout_poly)
+
+        # Adding the SiNdep cutout over the inductive meander.
+        if add_SiN_dep_dielectric_cutout_over_inductor:
+            if mirror:
+                new_SiN_dep_inductor_cutout_poly_points = self.mirror_points_around_yaxis(SiN_dep_inductor_cutout_poly_points)
+                new_SiN_dep_inductor_cutout_poly_points = self.rotate_and_move_points_list(
+                    new_SiN_dep_inductor_cutout_poly_points, rot_angle, x, y
+                )
+            else:
+                new_SiN_dep_inductor_cutout_poly_points = self.rotate_and_move_points_list(
+                    SiN_dep_inductor_cutout_poly_points, rot_angle, x, y
+                )
+
+            SiN_dep_inductor_cutout_poly = gdspy.Polygon(new_SiN_dep_inductor_cutout_poly_points, **self.SiN_dep)
+            self.silicon_nitride_cutouts.add(SiN_dep_inductor_cutout_poly)
+
+        # Return the configurator_points if specified else just return.
+        if not return_configurator_points:
+            return
+
+        configurator_points = {}
+
+        ####################################################################### Meander
+        configurator_points["meander_lw"] = {
+            "text": "meander_lw",
+            "start": [
+                (new_meander_path_points[5][0] + new_meander_path_points[6][0]) / 2,
+                new_meander_path_points[5][1] - (meander_lw / 2),
+            ],
+            "end": [(new_meander_path_points[5][0] + new_meander_path_points[6][0]) / 2, new_meander_path_points[5][1] + (meander_lw / 2)],
+        }
+
+        return configurator_points
+
+    def add_resonator_high_volume_v2(
+        self,
+        x,
+        y,
+        rot_angle,
+        f0,
+        IDC_and_CC_function,
+        Main_config_file_dict,
+        mirror=False,
+        IDC_and_frame_material="IDC_Nb",
+        meander_material="Al",
+        trim_length=None,
+        add_grnd_cutout=True,
+        add_SiN_dep_dielectric_cutout=True,
+        add_SiO_cutout=True,
+        add_SiN_membrane_cutout=True,
+        add_backside_check=True,
+        add_grnd_cutout_over_inductor=False,
+        add_SiN_dep_dielectric_cutout_over_inductor=False,
+        return_configurator_points=False,
+    ):
+        """Adds the KID geometry to the Main cell athe the x,y cooardinate
+        given. The KID is placed where the base middle of the inductive meander
+        is at this x,y. The KID geometry is defined by the dimensions within
+        the Main_config_file_dict. By default it will, but optionally can
+        choose not to, add all the neccessay cutouts for the structure.
+
+        Parameters
+        ----------
+        x,y : float, int
+            The x,y coordinates to place the KID. This is the very bottom center
+            point of the inductive meander section.
+
+        rot_angle : float, int
+            The rotation angle (**in radians**) for the structure. Positive values
+            are anti-clockwise, negative is clockwise. The default rotation is with
+            the inductive meander at the bottom and coupler at the top with IDC
+            arms running horizontally.
+
+        f0 : float, int
+            The resonant frequency of the resonator. Should be in the same unit
+            that the IDC_and_CC_function function takes.
+
+        IDC_and_CC_function : function
+            function for getting the IDC and CC lengths from a given f0. The
+            function should take a frequency argument and should return an
+            array-like (28 long) and a single float **in this order**, the
+            array-like contains all the lengths for each of the 28 arms for the
+            IDC and the single float/int value contains the CC
+            length. A simple example funtion:
+
+            >>> def example_IDC_CC_func(
+            ...     f0: float | int
+            ...     )->tuple[list[float | int], float | int]:
+            ...     '''Example function for IDC and CC.
+            ...
+            ...     f0 : float | int
+            ...         Resonant frequency in Hz.
+            ...     Returns
+            ...     -------
+            ...     IDC_lengths: list[float | int]
+            ...     CC_length: float | int
+            ...     '''
+            ...     if (f0 < 3.1e9):
+            ...         IDC_lengths = np.ones(28)*1900.0
+            ...         CC_length = 600.0
+            ...     else:
+            ...         IDC_lengths = np.ones(28)*1500.0
+            ...         CC_length = 300.0
+            ...
+            ...     return IDC_lengths, CC_length
+
+        Main_config_file_dict : dict
+            dictionary containing individual dictionarys of config settings.
+            Requires "resonator".
+
+        KwArgs
+        ------
+        IDC_and_frame_material = "IDC_Nb"
+            The material to make the IDC and frame structure out of. By Default
+            this is "IDC_Nb" which will make them out of the IDC_Nb material.
+            This can take any of the values "IDC_Nb", "Nb", or "Al", which will
+            make the frame and IDC out of IDC_Nb, Nb_Antenna, or Aluminium
+            layers respectively.
+
+        meander_material = "Al"
+            The material to make the inductive meander structure out of. By
+            Default this is "Al" which will make it out of the Aluminium
+            material. This can take any of the values "Al", "IDC_Nb", or "Nb"
+            which will make the inductive meander out of Aluminium, IDC_Nb, or
+            Nb_Antenna layers respectively.
+
+        trim_length=None
+            When None nothing is done. When a float or int value is passed,
+            there will be a trim layer added which will overlap the trim
+            fingers to bring the trim fingers down to the length specified.
+            For example, if you pass trim_length=1500. There will be a trim box
+            added over both trim fingers that will make the length of the trim
+            fingers equal this 1500um value.
+
+        mirror=False
+            Whether the KID should be mirrored about the center vertical, **this
+            mirroring is done before any roation is applied**. By default
+            (with 0° ratation) the KID's coupler is attached on the left but when
+            mirror=True the coupler on the right.
+
+        add_grnd_cutout=True
+            Whether or not to add a cutout in the Nb_Groundplane layer in the
+            neccary place for the KID structure.
+
+        add_SiN_dep_dielectric_cutout=True
+            Whether or not to add a cutout in the SiN depositon layer in the
+            neccary place for the KID structure.
+
+        add_SiO_cutout=True
+            Whether or not to add a cutout in the Silicon Oxide layer in the
+            neccary place for the KID structure.
+
+        add_SiN_membrane_cutout=True
+            Whether or not to add a cutout in the Silicon Nitride membrane layer
+            in the neccary place for the KID structure.
+
+        add_backside_check=True
+            Whether or not to add a backside check cover in the neccary place
+            for the KID structure.
+
+        add_grnd_cutout_over_inductor=False
+            Whether or not to add a groundplane cutout over the inductive
+            meander. Defaulf is false, when True will create a cutout over the
+            mander that is oversived by 30um in all directions relative to the
+            center of the inductive meander.
+
+        add_SiN_dep_dielectric_cutout_over_inductor=False
+            Whether or not to add a SiN depositon cutout over the inductive
+            meander. Defaulf is false, when True will create a cutout over the
+            mander that is oversived by 20um in all directions relative to the
+            center of the inductive meander.
+
+        return_configurator_points=False
+            return a the points for use in the configurator.
+        """
+
+        IDC_and_frame_material_lookup = {"IDC_Nb": self.IDC_Nb, "Nb": self.Nb_Antenna, "Al": self.Aluminium}
+        material_idc_and_frame = IDC_and_frame_material_lookup[IDC_and_frame_material]
+
+        meander_material_lookup = {"Al": self.Aluminium, "IDC_Nb": self.IDC_Nb, "Nb": self.Nb_Antenna}
+        material_meander = meander_material_lookup[meander_material]
+
+        required_key = "resonator"
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
+        config = Main_config_file_dict["resonator"]
+
+        # config = resonator_config_dict
+
+        # Making the meander section
+        meander_lw = config["meander_lw"]
+        meander_corner_bend_radius = config["meander_corner_bend_radius"]
+
+        meander_bot_width = config["meander_bot_width"]
+
+        meander_right_height_1 = config["meander_right_height_1"]
+        meander_right_height_2 = config["meander_right_height_2"]
+        meander_right_height_3 = config["meander_right_height_3"]
+        meander_right_height_4 = config["meander_right_height_4"]
+
+        meander_left_height_1 = config["meander_left_height_1"]
+        meander_left_height_2 = config["meander_left_height_2"]
+        meander_left_height_3 = config["meander_left_height_3"]
+        meander_left_height_4 = config["meander_left_height_4"]
+
+        meander_left_width_1 = config["meander_left_width_1"]
+        meander_left_width_2 = config["meander_left_width_2"]
+        meander_left_width_3 = config["meander_left_width_3"]
+
+        meander_right_width_1 = config["meander_right_width_1"]
+        meander_right_width_2 = config["meander_right_width_2"]
+        meander_right_width_3 = config["meander_right_width_3"]
+
+        meander_step_back_from_frame = config["meander_step_back_from_frame"]  # TODO Add this to the config.
+
+        meander_path_points = [
+            # TopRight to TopLeft clockwise
+            [
+                (meander_bot_width / 2) - meander_right_width_1 - meander_right_width_2 + meander_right_width_3,
+                meander_lw
+                + meander_right_height_1
+                - meander_right_height_2
+                + meander_right_height_3
+                + meander_right_height_4
+                - meander_step_back_from_frame,
+            ],
+            [
+                (meander_bot_width / 2) - meander_right_width_1 - meander_right_width_2 + meander_right_width_3,
+                (meander_lw / 2) + meander_right_height_1 - meander_right_height_2 + meander_right_height_3,
+            ],
+            [
+                (meander_bot_width / 2) - meander_right_width_1 - meander_right_width_2,
+                (meander_lw / 2) + meander_right_height_1 - meander_right_height_2 + meander_right_height_3,
+            ],
+            [
+                (meander_bot_width / 2) - meander_right_width_1 - meander_right_width_2,
+                (meander_lw / 2) + meander_right_height_1 - meander_right_height_2,
+            ],
+            [(meander_bot_width / 2) - meander_right_width_1, (meander_lw / 2) + meander_right_height_1 - meander_right_height_2],
+            [(meander_bot_width / 2) - meander_right_width_1, (meander_lw / 2) + meander_right_height_1],
+            [(meander_bot_width / 2), (meander_lw / 2) + meander_right_height_1],
+            [(meander_bot_width / 2), (meander_lw / 2)],  # Mid right hand side
+            [-(meander_bot_width / 2), (meander_lw / 2)],  # Mid left hand side
+            [-(meander_bot_width / 2), (meander_lw / 2) + meander_left_height_1],
+            [-(meander_bot_width / 2) - meander_left_width_1, (meander_lw / 2) + meander_left_height_1],
+            [-(meander_bot_width / 2) - meander_left_width_1, (meander_lw / 2) + meander_left_height_1 - meander_left_height_2],
+            [
+                -(meander_bot_width / 2) - meander_left_width_1 - meander_left_width_2,
+                (meander_lw / 2) + meander_left_height_1 - meander_left_height_2,
+            ],
+            [
+                -(meander_bot_width / 2) - meander_left_width_1 - meander_left_width_2,
+                (meander_lw / 2) + meander_left_height_1 - meander_left_height_2 + meander_left_height_3,
+            ],
+            [
+                -(meander_bot_width / 2) - meander_left_width_1 - meander_left_width_2 + meander_left_width_3,
+                (meander_lw / 2) + meander_left_height_1 - meander_left_height_2 + meander_left_height_3,
+            ],
+            [
+                -(meander_bot_width / 2) - meander_left_width_1 - meander_left_width_2 + meander_left_width_3,
+                meander_lw
+                + meander_left_height_1
+                - meander_left_height_2
+                + meander_left_height_3
+                + meander_left_height_4
+                - meander_step_back_from_frame,
+            ],
+        ]
+
+        # Making the meander ant pad
+        ant_pad_box_width = config["ant_pad_box_width"]  # 5
+        ant_pad_box_height = config["ant_pad_box_height"]  # 10
+
+        ant_pad_box_points = [
+            [-ant_pad_box_width / 2, 0],
+            [-ant_pad_box_width / 2, -ant_pad_box_height],
+            [ant_pad_box_width / 2, -ant_pad_box_height],
+            [ant_pad_box_width / 2, 0],
+        ]
+
+        # Making the frame sections left and right
+        frame_bot_lw = config["frame_bot_lw"]  # 8
+        frame_bot_left_offset = config["frame_bot_left_offset"]
+        frame_bot_right_offset = config["frame_bot_right_offset"]
+
+        frame_left_lw = config["frame_left_lw"]  # 8
+        frame_left_height = config["frame_left_height"]  # 400
+
+        frame_right_lw = config["frame_right_lw"]  # 8
+        frame_right_height = config["frame_right_height"]  # 400
+
+        frame_start_y = meander_path_points[-1][1] + meander_step_back_from_frame
+        frame_left_start_x = meander_path_points[-1][0] + (meander_lw / 2)
+        frame_right_start_x = meander_path_points[0][0] - (meander_lw / 2)
+
+        frame_meander_lw = config["frame_meander_lw"]
+        frame_meander_corner_bend_radius = config["frame_meander_corner_bend_radius"]
+
+        left_frame_meander_width_1 = config["left_frame_meander_width_1"]
+        left_frame_meander_width_2 = config["left_frame_meander_width_2"]
+        left_frame_meander_height_1 = config["left_frame_meander_height_1"]
+        left_frame_meander_height_2 = config["left_frame_meander_height_2"]
+
+        right_frame_meander_width_1 = config["right_frame_meander_width_1"]
+        right_frame_meander_width_2 = config["right_frame_meander_width_2"]
+        right_frame_meander_height_1 = config["right_frame_meander_height_1"]
+        right_frame_meander_height_2 = config["right_frame_meander_height_2"]
+
+        frame_left_points = [
+            # [frame_left_start_x, frame_start_y + frame_bot_lw],
+            [
+                frame_left_start_x - frame_bot_left_offset + frame_left_lw,
+                frame_start_y + left_frame_meander_height_1 + left_frame_meander_height_2,
+            ],
+            [frame_left_start_x - frame_bot_left_offset + frame_left_lw, frame_start_y + frame_left_height],
+            [frame_left_start_x - frame_bot_left_offset, frame_start_y + frame_left_height],
+            [frame_left_start_x - frame_bot_left_offset, frame_start_y + left_frame_meander_height_1 + left_frame_meander_height_2],
+            # [frame_left_start_x, frame_start_y],
+        ]
+
+        frame_right_points = [
+            # [frame_right_start_x, frame_start_y + frame_bot_lw],
+            [
+                frame_right_start_x + frame_bot_right_offset - frame_right_lw,
+                frame_start_y + left_frame_meander_height_1 + left_frame_meander_height_2,
+            ],
+            [frame_right_start_x + frame_bot_right_offset - frame_right_lw, frame_start_y + frame_right_height],
+            [frame_right_start_x + frame_bot_right_offset, frame_start_y + frame_right_height],
+            [frame_right_start_x + frame_bot_right_offset, frame_start_y + left_frame_meander_height_1 + left_frame_meander_height_2],
+            # [frame_right_start_x, frame_start_y],
+        ]
+
+        # Making the extra frame meander path sections left and right.
+        bot_left_frame_path_points = [
+            [frame_left_start_x, frame_start_y + (frame_meander_lw / 2)],
+            [frame_left_start_x - left_frame_meander_width_1, frame_start_y + (frame_meander_lw / 2)],
+            [frame_left_start_x - left_frame_meander_width_1, frame_start_y + left_frame_meander_height_1 + (frame_meander_lw / 2)],
+            [
+                frame_left_start_x - left_frame_meander_width_1 + left_frame_meander_width_2,
+                frame_start_y + left_frame_meander_height_1 + (frame_meander_lw / 2),
+            ],
+            [
+                frame_left_start_x - left_frame_meander_width_1 + left_frame_meander_width_2,
+                frame_start_y + left_frame_meander_height_1 + left_frame_meander_height_2 + (frame_meander_lw / 2),
+            ],
+            [
+                frame_left_start_x - left_frame_meander_width_1 + left_frame_meander_width_2 - frame_bot_left_offset + frame_left_lw,
+                frame_start_y + left_frame_meander_height_1 + left_frame_meander_height_2 + (frame_meander_lw / 2),
+            ],
+        ]
+
+        bot_right_frame_path_points = [
+            [frame_right_start_x, frame_start_y + (frame_meander_lw / 2)],
+            [frame_right_start_x + right_frame_meander_width_1, frame_start_y + (frame_meander_lw / 2)],
+            [frame_right_start_x + right_frame_meander_width_1, frame_start_y + right_frame_meander_height_1 + (frame_meander_lw / 2)],
+            [
+                frame_right_start_x + right_frame_meander_width_1 - right_frame_meander_width_2,
+                frame_start_y + right_frame_meander_height_1 + (frame_meander_lw / 2),
+            ],
+            [
+                frame_right_start_x + right_frame_meander_width_1 - right_frame_meander_width_2,
+                frame_start_y + right_frame_meander_height_1 + right_frame_meander_height_2 + (frame_meander_lw / 2),
+            ],
+            [
+                frame_right_start_x + right_frame_meander_width_1 - right_frame_meander_width_2 + frame_bot_right_offset - frame_right_lw,
+                frame_start_y + right_frame_meander_height_1 + right_frame_meander_height_2 + (frame_meander_lw / 2),
+            ],
+        ]
+
+        # Making the pads the conect the meander to the frame
+        frame_meander_cover_box_width = config["frame_meander_cover_box_width"]  # 5
+        frame_meander_cover_box_height = config["frame_meander_cover_box_height"]  # 28
+
+        extra_frame_meander_cover_box_width = config["extra_frame_meander_cover_box_width"]  # TODO add this to the config
+        extra_frame_meander_cover_box_height = config["extra_frame_meander_cover_box_height"]  # TODO add this to the config
+
+        meander_cover_box_right_points = [
+            [meander_path_points[0][0] - (frame_meander_cover_box_width / 2), frame_start_y + frame_meander_lw],
+            [
+                meander_path_points[0][0] - (frame_meander_cover_box_width / 2),
+                frame_start_y + frame_meander_lw - frame_meander_cover_box_height,
+            ],
+            [
+                meander_path_points[0][0] + (frame_meander_cover_box_width / 2),
+                frame_start_y + frame_meander_lw - frame_meander_cover_box_height,
+            ],
+            [meander_path_points[0][0] + (frame_meander_cover_box_width / 2), frame_start_y + frame_meander_lw],
+        ]
+
+        meander_cover_box_left_points = [
+            [meander_path_points[-1][0] - (frame_meander_cover_box_width / 2), frame_start_y + frame_meander_lw],
+            [
+                meander_path_points[-1][0] - (frame_meander_cover_box_width / 2),
+                frame_start_y + frame_meander_lw - frame_meander_cover_box_height,
+            ],
+            [
+                meander_path_points[-1][0] + (frame_meander_cover_box_width / 2),
+                frame_start_y + frame_meander_lw - frame_meander_cover_box_height,
+            ],
+            [meander_path_points[-1][0] + (frame_meander_cover_box_width / 2), frame_start_y + frame_meander_lw],
+        ]
+
+        meander_cover_box_right_end_center = [
+            (meander_cover_box_right_points[1][0] + meander_cover_box_right_points[2][0]) / 2,
+            (meander_cover_box_right_points[1][1] + meander_cover_box_right_points[2][1]) / 2,
+        ]
+
+        meander_cover_box_left_end_center = [
+            (meander_cover_box_left_points[1][0] + meander_cover_box_left_points[2][0]) / 2,
+            (meander_cover_box_left_points[1][1] + meander_cover_box_left_points[2][1]) / 2,
+        ]
+
+        extra_meander_cover_box_right_points = [
+            [
+                meander_cover_box_right_end_center[0] - (extra_frame_meander_cover_box_width / 2),
+                meander_cover_box_right_end_center[1] + (extra_frame_meander_cover_box_height / 2),
+            ],
+            [
+                meander_cover_box_right_end_center[0] - (extra_frame_meander_cover_box_width / 2),
+                meander_cover_box_right_end_center[1] - (extra_frame_meander_cover_box_height / 2),
+            ],
+            [
+                meander_cover_box_right_end_center[0] + (extra_frame_meander_cover_box_width / 2),
+                meander_cover_box_right_end_center[1] - (extra_frame_meander_cover_box_height / 2),
+            ],
+            [
+                meander_cover_box_right_end_center[0] + (extra_frame_meander_cover_box_width / 2),
+                meander_cover_box_right_end_center[1] + (extra_frame_meander_cover_box_height / 2),
+            ],
+        ]
+
+        extra_meander_cover_box_left_points = [
+            [
+                meander_cover_box_left_end_center[0] - (extra_frame_meander_cover_box_width / 2),
+                meander_cover_box_left_end_center[1] + (extra_frame_meander_cover_box_height / 2),
+            ],
+            [
+                meander_cover_box_left_end_center[0] - (extra_frame_meander_cover_box_width / 2),
+                meander_cover_box_left_end_center[1] - (extra_frame_meander_cover_box_height / 2),
+            ],
+            [
+                meander_cover_box_left_end_center[0] + (extra_frame_meander_cover_box_width / 2),
+                meander_cover_box_left_end_center[1] - (extra_frame_meander_cover_box_height / 2),
+            ],
+            [
+                meander_cover_box_left_end_center[0] + (extra_frame_meander_cover_box_width / 2),
+                meander_cover_box_left_end_center[1] + (extra_frame_meander_cover_box_height / 2),
+            ],
+        ]
+
+        # Making the coupler attachement
+        coupler_frame_left_lw = config["coupler_frame_left_lw"]  # 10
+        coupler_frame_left_height = config["coupler_frame_left_height"]  # 39
+        coupler_frame_top_lw = config["coupler_frame_top_lw"]  # 3
+
+        coupler_frame_start_x = frame_left_start_x - frame_bot_left_offset + (frame_left_lw / 2)
+        coupler_frame_start_y = frame_start_y + frame_left_height
+
+        # Making the IDC and trim arms
+        IDC_bot_arm_gap = config["IDC_bot_arm_gap"]  # 30
+        IDC_arm_gap = config["IDC_arm_gap"]  # 8
+        IDC_arm_lw = config["IDC_arm_lw"]  # 3
+        No_of_arms = config["No_of_arms"]  # 28
+
+        arm_start_x_left_side = frame_left_start_x - frame_bot_left_offset + frame_left_lw
+        arm_start_x_right_side = frame_right_start_x + frame_bot_right_offset - frame_right_lw
+
+        arm_start_y_right_side = frame_start_y + frame_bot_lw + IDC_bot_arm_gap + (IDC_arm_lw / 2)
+        arm_start_y_left_side = arm_start_y_right_side + IDC_arm_gap + IDC_arm_lw
+
+        trim_arm_offset_right_side = config["trim_arm_offset_right_side"]  # 380
+        trim_arm_offset_left_side = config["trim_arm_offset_left_side"]  # 389
+        trim_arm_lw = config["trim_arm_lw"]  # 3
+        trim_arm_length_right_side = config["trim_arm_length_right_side"]  # 1975
+        trim_arm_length_left_side = config["trim_arm_length_left_side"]  # 1975
+
+        trim_arm_start_y_right_side = frame_start_y + frame_bot_lw + trim_arm_offset_right_side
+        trim_arm_start_y_left_side = frame_start_y + frame_bot_lw + trim_arm_offset_left_side
+
+        # Making the coupler ataching to feedline
+        coupler_gap = config["coupler_gap"]  # 16
+        coupler_lw = config["coupler_lw"]  # 3
+        left_coupler_frame_to_feed_distance = config["left_coupler_frame_to_feed_distance"]  # 164
+
+        # Making the ground plane cutout
+        cutout_bot_offset = config["cutout_bot_offset"]  # 15
+        cutout_left_offset = config["cutout_left_offset"]  # 50
+        cutout_right_offset = config["cutout_right_offset"]  # 50
+        cutout_top_offset = config["cutout_top_offset"]  # 25
+
+        # grndpl_meander_cutout_width = config["grndpl_meander_cutout_width"]#80
+        # grndpl_meander_cutout_height = config["grndpl_meander_cutout_height"]#10
+
+        cutout_start_height = frame_start_y - cutout_bot_offset
+        cutout_width = (frame_right_start_x + frame_bot_right_offset + cutout_right_offset) - (
+            frame_left_start_x - frame_bot_left_offset - cutout_left_offset
+        )
+        cutout_height = (
+            coupler_frame_start_y + coupler_frame_left_height + coupler_gap + coupler_lw + cutout_top_offset
+        ) - cutout_start_height
+
+        step_down_distance_between_layers = config["step_down_distance_between_layers"]  # 5
+
+        grnd_plane_cutout_width = cutout_width + (3 * (2 * step_down_distance_between_layers))
+        grnd_plane_cutout_height = cutout_height + (3 * (2 * step_down_distance_between_layers))
+        grnd_plane_cutout_start_height = cutout_start_height - (3 * step_down_distance_between_layers)
+
+        grnd_plane_meander_cutout_poly_points = [
+            [-grnd_plane_cutout_width / 2, grnd_plane_cutout_start_height],
+            [-grnd_plane_cutout_width / 2, grnd_plane_cutout_start_height + grnd_plane_cutout_height],
+            [grnd_plane_cutout_width / 2, grnd_plane_cutout_start_height + grnd_plane_cutout_height],
+            [grnd_plane_cutout_width / 2, grnd_plane_cutout_start_height],
+        ]
+
+        grnd_plane_inductor_cutout_offset_right = 30
+        grnd_plane_inductor_cutout_offset_left = 30
+        grnd_plane_inductor_cutout_offset_top = 30
+        grnd_plane_inductor_cutout_offset_bot = 30
+
+        grnd_plane_inductor_cutout_poly_points = [
+            # bot right, bot left, top left, top right
+            [
+                meander_path_points[5][0] + grnd_plane_inductor_cutout_offset_right,
+                meander_path_points[5][1] - grnd_plane_inductor_cutout_offset_bot,
+            ],
+            [
+                meander_path_points[8][0] - grnd_plane_inductor_cutout_offset_left,
+                meander_path_points[5][1] - grnd_plane_inductor_cutout_offset_bot,
+            ],
+            [
+                meander_path_points[8][0] - grnd_plane_inductor_cutout_offset_left,
+                meander_path_points[0][1] + grnd_plane_inductor_cutout_offset_top,
+            ],
+            [
+                meander_path_points[0][0] + grnd_plane_inductor_cutout_offset_right,
+                meander_path_points[0][1] + grnd_plane_inductor_cutout_offset_top,
+            ],
+        ]
+
+        SiN_dep_inductor_cutout_offset_right = 20
+        SiN_dep_inductor_cutout_offset_left = 20
+        SiN_dep_inductor_cutout_offset_top = 20
+        SiN_dep_inductor_cutout_offset_bot = 20
+
+        SiN_dep_inductor_cutout_poly_points = [
+            # bot right, bot left, top left, top right
+            [
+                meander_path_points[5][0] + SiN_dep_inductor_cutout_offset_right,
+                meander_path_points[5][1] - SiN_dep_inductor_cutout_offset_bot,
+            ],
+            [
+                meander_path_points[8][0] - SiN_dep_inductor_cutout_offset_left,
+                meander_path_points[5][1] - SiN_dep_inductor_cutout_offset_bot,
+            ],
+            [
+                meander_path_points[8][0] - SiN_dep_inductor_cutout_offset_left,
+                meander_path_points[0][1] + SiN_dep_inductor_cutout_offset_top,
+            ],
+            [
+                meander_path_points[0][0] + SiN_dep_inductor_cutout_offset_right,
+                meander_path_points[0][1] + SiN_dep_inductor_cutout_offset_top,
+            ],
+        ]
+
+        SiN_dep_cutout_width = cutout_width + 20
+        SiN_dep_cutout_height = cutout_height + 20
+        SiN_dep_cutout_start_height = cutout_start_height - 10
+
+        SiN_dep_cutout_poly_points = [
+            [-SiN_dep_cutout_width / 2, SiN_dep_cutout_start_height],
+            [-SiN_dep_cutout_width / 2, SiN_dep_cutout_start_height + SiN_dep_cutout_height],
+            [SiN_dep_cutout_width / 2, SiN_dep_cutout_start_height + SiN_dep_cutout_height],
+            [SiN_dep_cutout_width / 2, SiN_dep_cutout_start_height],
+        ]
+
+        # Making the SiO cutout rect
+        SiO_stepdown_cutout_width = config["SiO_stepdown_cutout_width"]  # 110
+        SiO_stepdown_cutout_height = config["SiO_stepdown_cutout_height"]  # 39
+        SiO_cutout_width = cutout_width
+        SiO_cutout_height = cutout_height
+        SiO_cutout_start_height = cutout_start_height
+
+        SiO_cutout_poly_points = [
+            [-SiO_stepdown_cutout_width / 2, SiO_cutout_start_height + SiO_stepdown_cutout_height],
+            [-SiO_stepdown_cutout_width / 2, SiO_cutout_start_height],
+            [-SiO_cutout_width / 2, SiO_cutout_start_height],
+            [-SiO_cutout_width / 2, SiO_cutout_start_height + SiO_cutout_height],
+            [SiO_cutout_width / 2, SiO_cutout_start_height + SiO_cutout_height],
+            [SiO_cutout_width / 2, SiO_cutout_start_height],
+            [SiO_stepdown_cutout_width / 2, SiO_cutout_start_height],
+            [SiO_stepdown_cutout_width / 2, SiO_cutout_start_height + SiO_stepdown_cutout_height],
+        ]
+
+        # Making the SiN membrane cutout
+        SiN_membrane_stepdown_cutout_width = config["SiN_membrane_stepdown_cutout_width"]  # 100
+        SiN_membrane_stepdown_cutout_height = config["SiN_membrane_stepdown_cutout_height"]  # 36
+        SiN_membrane_cutout_width = cutout_width + 10
+        SiN_membrane_cutout_height = cutout_height + 10
+        SiN_membrane_cutout_start_height = cutout_start_height - 5
+
+        SiN_membrane_cutout_poly_points = [
+            [-SiN_membrane_stepdown_cutout_width / 2, SiN_membrane_cutout_start_height + SiN_membrane_stepdown_cutout_height],
+            [-SiN_membrane_stepdown_cutout_width / 2, SiN_membrane_cutout_start_height],
+            [-SiN_membrane_cutout_width / 2, SiN_membrane_cutout_start_height],
+            [-SiN_membrane_cutout_width / 2, SiN_membrane_cutout_start_height + SiN_membrane_cutout_height],
+            [SiN_membrane_cutout_width / 2, SiN_membrane_cutout_start_height + SiN_membrane_cutout_height],
+            [SiN_membrane_cutout_width / 2, SiN_membrane_cutout_start_height],
+            [SiN_membrane_stepdown_cutout_width / 2, SiN_membrane_cutout_start_height],
+            [SiN_membrane_stepdown_cutout_width / 2, SiN_membrane_cutout_start_height + SiN_membrane_stepdown_cutout_height],
+        ]
+
+        # Making the backside check covers
+        backside_check_cover_width = cutout_width
+        backside_check_cover_height = cutout_height
+        backside_check_cutout_start_height = cutout_start_height
+
+        backside_check_cover_poly_points = [
+            [-backside_check_cover_width / 2, backside_check_cutout_start_height],
+            [-backside_check_cover_width / 2, backside_check_cutout_start_height + backside_check_cover_height],
+            [backside_check_cover_width / 2, backside_check_cutout_start_height + backside_check_cover_height],
+            [backside_check_cover_width / 2, backside_check_cutout_start_height],
+        ]
+
+        # Getting the IDC and CC lengths from the function
+        IDCLs, CCL = IDC_and_CC_function(f0)
+
+        # Adding the meander
+
+        if mirror:
+            new_meander_path_points = self.mirror_points_around_yaxis(meander_path_points)
+            new_meander_path_points = self.rotate_and_move_points_list(new_meander_path_points, rot_angle, x, y)
+        else:
+            new_meander_path_points = self.rotate_and_move_points_list(meander_path_points, rot_angle, x, y)
+        meander_path = gdspy.FlexPath(
+            new_meander_path_points, meander_lw, corners="circular bend", bend_radius=meander_corner_bend_radius, **material_meander
+        )
+        meander_path_polygons = self.get_polys_from_flexpath(meander_path)
+        for i in range(len(meander_path_polygons)):
+            self.Main.add(gdspy.Polygon(meander_path_polygons[i], **material_meander))
+
+        # Adding the meander ant overlap box
+        new_ant_pad_box_points = self.rotate_and_move_points_list(ant_pad_box_points, rot_angle, x, y)
+        ant_pad_box = gdspy.Polygon(new_ant_pad_box_points, **material_meander)
+        self.Main.add(ant_pad_box)
+
+        # Adding the meander frame overlap boxes
+        if mirror:
+            new_meander_cover_box_right_points = self.mirror_points_around_yaxis(meander_cover_box_right_points)
+            new_meander_cover_box_right_points = self.rotate_and_move_points_list(new_meander_cover_box_right_points, rot_angle, x, y)
+        else:
+            new_meander_cover_box_right_points = self.rotate_and_move_points_list(meander_cover_box_right_points, rot_angle, x, y)
+
+        meander_cover_box_right = gdspy.Polygon(new_meander_cover_box_right_points, **material_idc_and_frame)
+        self.Main.add(meander_cover_box_right)
+
+        if mirror:
+            new_meander_cover_box_left_points = self.mirror_points_around_yaxis(meander_cover_box_left_points)
+            new_meander_cover_box_left_points = self.rotate_and_move_points_list(new_meander_cover_box_left_points, rot_angle, x, y)
+        else:
+            new_meander_cover_box_left_points = self.rotate_and_move_points_list(meander_cover_box_left_points, rot_angle, x, y)
+
+        meander_cover_box_left = gdspy.Polygon(new_meander_cover_box_left_points, **material_idc_and_frame)
+        self.Main.add(meander_cover_box_left)
+
+        # Adding the extra frame meander left and right.
+        if mirror:
+            new_bot_left_frame_path_points = self.mirror_points_around_yaxis(bot_left_frame_path_points)
+            new_bot_left_frame_path_points = self.rotate_and_move_points_list(new_bot_left_frame_path_points, rot_angle, x, y)
+        else:
+            new_bot_left_frame_path_points = self.rotate_and_move_points_list(bot_left_frame_path_points, rot_angle, x, y)
+
+        bot_left_frame_path = gdspy.FlexPath(
+            new_bot_left_frame_path_points,
+            frame_meander_lw,
+            corners="circular bend",
+            bend_radius=frame_meander_corner_bend_radius,
+            **material_idc_and_frame,
+        )
+
+        if mirror:
+            new_bot_right_frame_path_points = self.mirror_points_around_yaxis(bot_right_frame_path_points)
+            new_bot_right_frame_path_points = self.rotate_and_move_points_list(new_bot_right_frame_path_points, rot_angle, x, y)
+        else:
+            new_bot_right_frame_path_points = self.rotate_and_move_points_list(bot_right_frame_path_points, rot_angle, x, y)
+
+        bot_right_frame_path = gdspy.FlexPath(
+            new_bot_right_frame_path_points,
+            frame_meander_lw,
+            corners="circular bend",
+            bend_radius=frame_meander_corner_bend_radius,
+            **material_idc_and_frame,
+        )
+        self.make_flexpath_into_polygons_and_add_to_main(
+            bot_left_frame_path, layer=material_idc_and_frame["layer"], datatype=material_idc_and_frame["datatype"]
+        )
+        self.make_flexpath_into_polygons_and_add_to_main(
+            bot_right_frame_path, layer=material_idc_and_frame["layer"], datatype=material_idc_and_frame["datatype"]
+        )
+
+        # Adding the extra meander frame overlap boxes
+        if mirror:
+            new_extra_meander_cover_box_right_points = self.mirror_points_around_yaxis(extra_meander_cover_box_right_points)
+            new_extra_meander_cover_box_right_points = self.rotate_and_move_points_list(
+                new_extra_meander_cover_box_right_points, rot_angle, x, y
+            )
+        else:
+            new_extra_meander_cover_box_right_points = self.rotate_and_move_points_list(
+                extra_meander_cover_box_right_points, rot_angle, x, y
+            )
+
+        extra_meander_cover_box_right = gdspy.Polygon(new_extra_meander_cover_box_right_points, **material_meander)
+        self.Main.add(extra_meander_cover_box_right)
+
+        if mirror:
+            new_extra_meander_cover_box_left_points = self.mirror_points_around_yaxis(extra_meander_cover_box_left_points)
+            new_extra_meander_cover_box_left_points = self.rotate_and_move_points_list(
+                new_extra_meander_cover_box_left_points, rot_angle, x, y
+            )
+        else:
+            new_extra_meander_cover_box_left_points = self.rotate_and_move_points_list(extra_meander_cover_box_left_points, rot_angle, x, y)
+        extra_meander_cover_box_left = gdspy.Polygon(new_extra_meander_cover_box_left_points, **material_meander)
+        self.Main.add(extra_meander_cover_box_left)
+
+        # Adding the frame left and frame right
+        if mirror:
+            new_frame_left_points = self.mirror_points_around_yaxis(frame_left_points)
+            new_frame_left_points = self.rotate_and_move_points_list(new_frame_left_points, rot_angle, x, y)
+        else:
+            new_frame_left_points = self.rotate_and_move_points_list(frame_left_points, rot_angle, x, y)
+
+        frame_left_poly = gdspy.Polygon(new_frame_left_points, **material_idc_and_frame)
+        self.Main.add(frame_left_poly)
+
+        if mirror:
+            new_frame_right_points = self.mirror_points_around_yaxis(frame_right_points)
+            new_frame_right_points = self.rotate_and_move_points_list(new_frame_right_points, rot_angle, x, y)
+        else:
+            new_frame_right_points = self.rotate_and_move_points_list(frame_right_points, rot_angle, x, y)
+
+        frame_right_poly = gdspy.Polygon(new_frame_right_points, **material_idc_and_frame)
+        self.Main.add(frame_right_poly)
+
+        # Adding the coupler frame
+        coupler_frame_points = [
+            [coupler_frame_start_x - (coupler_frame_left_lw / 2), coupler_frame_start_y],
+            [coupler_frame_start_x - (coupler_frame_left_lw / 2), coupler_frame_start_y + coupler_frame_left_height],
+            [coupler_frame_start_x - (coupler_frame_left_lw / 2) + CCL, coupler_frame_start_y + coupler_frame_left_height],
+            [
+                coupler_frame_start_x - (coupler_frame_left_lw / 2) + CCL,
+                coupler_frame_start_y + coupler_frame_left_height - coupler_frame_top_lw,
+            ],
+            [coupler_frame_start_x + (coupler_frame_left_lw / 2), coupler_frame_start_y + coupler_frame_left_height - coupler_frame_top_lw],
+            [coupler_frame_start_x + (coupler_frame_left_lw / 2), coupler_frame_start_y],
+        ]
+        if mirror:
+            new_coupler_frame_points = self.mirror_points_around_yaxis(coupler_frame_points)
+            new_coupler_frame_points = self.rotate_and_move_points_list(new_coupler_frame_points, rot_angle, x, y)
+        else:
+            new_coupler_frame_points = self.rotate_and_move_points_list(coupler_frame_points, rot_angle, x, y)
+
+        coupler_frame_poly = gdspy.Polygon(new_coupler_frame_points, **material_idc_and_frame)
+        self.Main.add(coupler_frame_poly)
+
+        # Adding the coupler arm
+        coupler_arm_points = [
+            [
+                coupler_frame_start_x - (coupler_frame_left_lw / 2) - left_coupler_frame_to_feed_distance,
+                coupler_frame_start_y + coupler_frame_left_height + coupler_gap,
+            ],
+            [coupler_frame_start_x - (coupler_frame_left_lw / 2) + CCL, coupler_frame_start_y + coupler_frame_left_height + coupler_gap],
+            [
+                coupler_frame_start_x - (coupler_frame_left_lw / 2) + CCL,
+                coupler_frame_start_y + coupler_frame_left_height + coupler_gap + coupler_lw,
+            ],
+            [
+                coupler_frame_start_x - (coupler_frame_left_lw / 2) - left_coupler_frame_to_feed_distance,
+                coupler_frame_start_y + coupler_frame_left_height + coupler_gap + coupler_lw,
+            ],
+        ]
+        if mirror:
+            new_coupler_arm_points = self.mirror_points_around_yaxis(coupler_arm_points)
+            new_coupler_arm_points = self.rotate_and_move_points_list(new_coupler_arm_points, rot_angle, x, y)
+        else:
+            new_coupler_arm_points = self.rotate_and_move_points_list(coupler_arm_points, rot_angle, x, y)
+
+        coupler_arm_poly = gdspy.Polygon(new_coupler_arm_points, **self.Nb_Antenna)
+        self.Main.add(coupler_arm_poly)
+
+        # Adding the IDC arms
+        for i in range(0, No_of_arms, 2):
+            right_arm = gdspy.Rectangle(
+                [arm_start_x_right_side, arm_start_y_right_side - (IDC_arm_lw / 2) + (i * (IDC_arm_gap + IDC_arm_lw))],
+                [arm_start_x_right_side - IDCLs[-(i + 1)], arm_start_y_right_side + (IDC_arm_lw / 2) + (i * (IDC_arm_gap + IDC_arm_lw))],
+                **material_idc_and_frame,
+            )
+            right_arm.translate(x, y)
+            if mirror:
+                right_arm.mirror([x, y], [x, y + 10])
+            right_arm.rotate(rot_angle, center=(x, y))
+            self.Main.add(right_arm)
+
+            left_arm = gdspy.Rectangle(
+                [arm_start_x_left_side, arm_start_y_left_side - (IDC_arm_lw / 2) + (i * (IDC_arm_gap + IDC_arm_lw))],
+                [arm_start_x_left_side + IDCLs[-(i + 2)], arm_start_y_left_side + (IDC_arm_lw / 2) + (i * (IDC_arm_gap + IDC_arm_lw))],
+                **material_idc_and_frame,
+            )
+            left_arm.translate(x, y)
+            if mirror:
+                left_arm.mirror([x, y], [x, y + 10])
+            left_arm.rotate(rot_angle, center=(x, y))
+            self.Main.add(left_arm)
+
+        # Adding the Trim arms.
+        right_trim_arm = gdspy.Rectangle(
+            [arm_start_x_right_side, trim_arm_start_y_right_side],
+            [arm_start_x_right_side - trim_arm_length_right_side, trim_arm_start_y_right_side + trim_arm_lw],
+            **material_idc_and_frame,
+        )
+        right_trim_arm.translate(x, y)
+        if mirror:
+            right_trim_arm.mirror([x, y], [x, y + 10])
+        right_trim_arm.rotate(rot_angle, center=(x, y))
+        self.Main.add(right_trim_arm)
+
+        left_trim_arm = gdspy.Rectangle(
+            [arm_start_x_left_side, trim_arm_start_y_left_side],
+            [arm_start_x_left_side + trim_arm_length_left_side, trim_arm_start_y_left_side + trim_arm_lw],
+            **material_idc_and_frame,
+        )
+        left_trim_arm.translate(x, y)
+        if mirror:
+            left_trim_arm.mirror([x, y], [x, y + 10])
+        left_trim_arm.rotate(rot_angle, center=(x, y))
+        self.Main.add(left_trim_arm)
+
+        # Adding the Trim boxes for the trim arms at Trim lengths specified if non-zero.
+        if trim_length != None:
+            if (
+                trim_length < trim_arm_length_right_side and trim_length < trim_arm_length_left_side
+            ):  # does not add a trim box if the trim length is longer than full length arm.
+                inner_width = arm_start_x_right_side - arm_start_x_left_side
+
+                trim_box_width = 3 * trim_arm_lw  # 6
+                trim_box_length_overhang = (inner_width - trim_arm_length_right_side) / 2
+                trim_box_for_right_trim_arm = gdspy.Rectangle(
+                    [
+                        arm_start_x_right_side - trim_arm_length_right_side - trim_box_length_overhang,
+                        trim_arm_start_y_right_side + (trim_arm_lw / 2) - (trim_box_width / 2),
+                    ],
+                    [
+                        arm_start_x_left_side + (inner_width - trim_length),
+                        trim_arm_start_y_right_side + (trim_arm_lw / 2) + (trim_box_width / 2),
+                    ],
+                    **self.TrimLayer,
+                )
+                trim_box_for_right_trim_arm.translate(x, y)
+                if mirror:
+                    trim_box_for_right_trim_arm.mirror([x, y], [x, y + 10])
+                trim_box_for_right_trim_arm.rotate(rot_angle, center=(x, y))
+                self.Main.add(trim_box_for_right_trim_arm)
+
+                trim_box_for_left_trim_arm = gdspy.Rectangle(
+                    [
+                        arm_start_x_left_side + trim_arm_length_left_side + trim_box_length_overhang,
+                        trim_arm_start_y_left_side + (trim_arm_lw / 2) - (trim_box_width / 2),
+                    ],
+                    [
+                        arm_start_x_right_side - (inner_width - trim_length),
+                        trim_arm_start_y_left_side + (trim_arm_lw / 2) + (trim_box_width / 2),
+                    ],
+                    **self.TrimLayer,
+                )
+                trim_box_for_left_trim_arm.translate(x, y)
+                if mirror:
+                    trim_box_for_left_trim_arm.mirror([x, y], [x, y + 10])
+                trim_box_for_left_trim_arm.rotate(rot_angle, center=(x, y))
+                self.Main.add(trim_box_for_left_trim_arm)
+
+        # Adding the cutout to the groundplane.
+        if add_grnd_cutout:
+            if mirror:
+                new_grnd_plane_meander_cutout_poly_points = self.mirror_points_around_yaxis(grnd_plane_meander_cutout_poly_points)
+                new_grnd_plane_meander_cutout_poly_points = self.rotate_and_move_points_list(
+                    new_grnd_plane_meander_cutout_poly_points, rot_angle, x, y
+                )
+            else:
+                new_grnd_plane_meander_cutout_poly_points = self.rotate_and_move_points_list(
+                    grnd_plane_meander_cutout_poly_points, rot_angle, x, y
+                )
+
+            grnd_plane_meander_cutout_poly = gdspy.Polygon(new_grnd_plane_meander_cutout_poly_points, **self.Nb_Groundplane)
+            self.ground_plane_cutouts.add(grnd_plane_meander_cutout_poly)
+
+        # Adding the cutout to the Silicon DiOxide membrane.
+        if add_SiO_cutout:
+            if mirror:
+                new_SiO_cutout_poly_points = self.mirror_points_around_yaxis(SiO_cutout_poly_points)
+                new_SiO_cutout_poly_points = self.rotate_and_move_points_list(new_SiO_cutout_poly_points, rot_angle, x, y)
+            else:
+                new_SiO_cutout_poly_points = self.rotate_and_move_points_list(SiO_cutout_poly_points, rot_angle, x, y)
+
+            SiO_cutout_poly = gdspy.Polygon(new_SiO_cutout_poly_points, **self.Nb_Groundplane)
+            self.silicon_oxide_cutouts.add(SiO_cutout_poly)
+
+        # Adding the cutout to the Silicon Nitride membrane.
+        if add_SiN_membrane_cutout:
+            if mirror:
+                new_SiN_membrane_cutout_poly_points = self.mirror_points_around_yaxis(SiN_membrane_cutout_poly_points)
+                new_SiN_membrane_cutout_poly_points = self.rotate_and_move_points_list(new_SiN_membrane_cutout_poly_points, rot_angle, x, y)
+            else:
+                new_SiN_membrane_cutout_poly_points = self.rotate_and_move_points_list(SiN_membrane_cutout_poly_points, rot_angle, x, y)
+
+            SiN_membrane_cutout_poly = gdspy.Polygon(new_SiN_membrane_cutout_poly_points, **self.Nb_Groundplane)
+            self.silicon_nitride_membrane_cutouts.add(SiN_membrane_cutout_poly)
+
+        # Adding the cutout to the SiN Dep layer.
+        if add_SiN_dep_dielectric_cutout:
+            if mirror:
+                new_SiN_dep_cutout_poly_points = self.mirror_points_around_yaxis(SiN_dep_cutout_poly_points)
+                new_SiN_dep_cutout_poly_points = self.rotate_and_move_points_list(new_SiN_dep_cutout_poly_points, rot_angle, x, y)
+            else:
+                new_SiN_dep_cutout_poly_points = self.rotate_and_move_points_list(SiN_dep_cutout_poly_points, rot_angle, x, y)
+
+            SiN_dep_cutout_poly = gdspy.Polygon(new_SiN_dep_cutout_poly_points, **self.SiN_dep)
+            self.silicon_nitride_cutouts.add(SiN_dep_cutout_poly)
+
+        # Adding the backside check covers.
+        if add_backside_check:
+            if mirror:
+                new_backside_check_cover_poly_points = self.mirror_points_around_yaxis(backside_check_cover_poly_points)
+                new_backside_check_cover_poly_points = self.rotate_and_move_points_list(
+                    new_backside_check_cover_poly_points, rot_angle, x, y
+                )
+            else:
+                new_backside_check_cover_poly_points = self.rotate_and_move_points_list(backside_check_cover_poly_points, rot_angle, x, y)
+
+            backside_check_cover_poly = gdspy.Polygon(new_backside_check_cover_poly_points, **self.Backside_Check)
+            self.Main.add(backside_check_cover_poly)
+
+        # Adding the groundplane cutout over the inductive meander.
+        if add_grnd_cutout_over_inductor:
+            if mirror:
+                new_grnd_plane_inductor_cutout_poly_points = self.mirror_points_around_yaxis(grnd_plane_inductor_cutout_poly_points)
+                new_grnd_plane_inductor_cutout_poly_points = self.rotate_and_move_points_list(
+                    new_grnd_plane_inductor_cutout_poly_points, rot_angle, x, y
+                )
+            else:
+                new_grnd_plane_inductor_cutout_poly_points = self.rotate_and_move_points_list(
+                    grnd_plane_inductor_cutout_poly_points, rot_angle, x, y
+                )
+
+            grnd_plane_inductor_cutout_poly = gdspy.Polygon(new_grnd_plane_inductor_cutout_poly_points, **self.Nb_Groundplane)
+            self.ground_plane_cutouts.add(grnd_plane_inductor_cutout_poly)
+
+        # Adding the SiNdep cutout over the inductive meander.
+        if add_SiN_dep_dielectric_cutout_over_inductor:
+            if mirror:
+                new_SiN_dep_inductor_cutout_poly_points = self.mirror_points_around_yaxis(SiN_dep_inductor_cutout_poly_points)
+                new_SiN_dep_inductor_cutout_poly_points = self.rotate_and_move_points_list(
+                    new_SiN_dep_inductor_cutout_poly_points, rot_angle, x, y
+                )
+            else:
+                new_SiN_dep_inductor_cutout_poly_points = self.rotate_and_move_points_list(
+                    SiN_dep_inductor_cutout_poly_points, rot_angle, x, y
+                )
+
+            SiN_dep_inductor_cutout_poly = gdspy.Polygon(new_SiN_dep_inductor_cutout_poly_points, **self.SiN_dep)
+            self.silicon_nitride_cutouts.add(SiN_dep_inductor_cutout_poly)
+
+        # Return the configurator_points if specified else just return.
+        if not return_configurator_points:
+            return
+
+        configurator_points = {}
+
+        ####################################################################### Meander
+        configurator_points["meander_lw"] = {
+            "text": "meander_lw",
+            "start": [
+                (new_meander_path_points[5][0] + new_meander_path_points[6][0]) / 2,
+                new_meander_path_points[5][1] - (meander_lw / 2),
+            ],
+            "end": [(new_meander_path_points[5][0] + new_meander_path_points[6][0]) / 2, new_meander_path_points[5][1] + (meander_lw / 2)],
+        }
+
+        return configurator_points
+
     def add_Lo_pass_filters(
         self, x, y, inner_ring_line_width, inner_ring_radius, init_angle, direction, Main_config_file_dict, return_configurator_points=False
     ):
@@ -4676,6 +7318,8 @@ class SoukFuncs:
             return a the points for use in the configurator.
         """
 
+        required_key = "Lo_pass_filters"
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
         config = Main_config_file_dict["Lo_pass_filters"]
         # LoPass arm details
         Lo_pass_arm1_linewidth = config["Lo_pass_arm1_linewidth"]  # 9.5
@@ -4871,6 +7515,8 @@ class SoukFuncs:
             return a the points for use in the configurator.
         """
 
+        required_key = "Hi_pass_filters"
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
         config = Main_config_file_dict["Hi_pass_filters"]
         # HiPass arm details
         Hi_pass_arm1_linewidth = config["Hi_pass_arm1_linewidth"]  # 22
@@ -5098,8 +7744,12 @@ class SoukFuncs:
         """
 
         if combiner_type == "90GHZ":
+            required_key = "combiner_section_90GHZ"
+            self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
             config = Main_config_file_dict["combiner_section_90GHZ"]
         elif combiner_type == "150GHZ":
+            required_key = "combiner_section_150GHZ"
+            self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
             config = Main_config_file_dict["combiner_section_150GHZ"]
         else:
             raise ValueError("'combiner_type' argument should be either '90GHZ' or '150GHZ'")
@@ -6427,7 +9077,8 @@ class SoukFuncs:
             This dict has keys: **'inner_conect_0', 'inner_conect_1',
             'outer_conect_0', 'outer_conect_1'**.
         """
-
+        required_key = "filter_bank_ring_overlap"
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
         config = Main_config_file_dict["filter_bank_ring_overlap"]
 
         outer_box_width = config["outer_box_width"]  # 100
@@ -6839,6 +9490,8 @@ class SoukFuncs:
             This dict has keys: **'TR', 'TL', 'BL', 'BR'**.
         """
 
+        required_key = "filter_bank"
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
         config = Main_config_file_dict["filter_bank"]
 
         # ring dimension and properties
@@ -8148,6 +10801,8 @@ class SoukFuncs:
         return_configurator_points=False
             return a the points for use in the configurator.
         """
+        required_keys = ["antenna_cpw_microstrip_trans", "filter_bank", "antenna"]
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_keys)
 
         config = Main_config_file_dict["antenna_cpw_microstrip_trans"]
 
@@ -8543,7 +11198,7 @@ class SoukFuncs:
 
         Main_config_file_dict : dict
             dictionary containing individual dictionarys of config settings.
-            Requires "antenna_cpw_microstrip_trans" AND "filter_bank" AND "antenna".
+            Requires "antenna_cpw_microstrip_trans" AND "antenna".
 
         KwArgs
         ------
@@ -8551,10 +11206,9 @@ class SoukFuncs:
             Adds dielectric under the connection from the antenna to the KID
             meander.
         """
-
+        required_keys = ["antenna_cpw_microstrip_trans", "antenna"]
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_keys)
         config = Main_config_file_dict["antenna_cpw_microstrip_trans"]
-
-        inner_ring_radius = Main_config_file_dict["filter_bank"]["inner_ring_radius"]
 
         ant_line_width = Main_config_file_dict["antenna"]["top_conect_width"]
         microstrip_lw = config["microstrip_lw"]
@@ -8865,7 +11519,8 @@ class SoukFuncs:
             the positive x direction a distance defined in a variable below
             until it no longer is considered clashing.
         """
-
+        required_key = "cpw_feedline"
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
         config = Main_config_file_dict["cpw_feedline"]
 
         bend_radius = config["bend_radius"]
@@ -9028,11 +11683,11 @@ class SoukFuncs:
         bend_radius,
         feedline_width,
         cutout_around_feedline_width,
-        dielectric_under_feedline_width=0,
+        dielectric_under_feedline_width=0.0,
         center_material="Nb",
         add_bridges=False,
-        cutout_dilectric_around_end_distance=0,
-        cutout_groundplane_around_end_distance=0,
+        cutout_dilectric_around_end_distance=0.0,
+        cutout_groundplane_around_end_distance=0.0,
         cutout_center_around_end_distance=0.5,
         return_outer_poly_points=False,
     ):
@@ -9381,6 +12036,8 @@ class SoukFuncs:
         if center_material not in ["Nb", "Al"]:
             raise ValueError("center_material arg should be a str that takes the value of 'Nb' or 'Al'")
 
+        required_keys = ["cpw_feedline", "port"]
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_keys)
         cpw_feedline_config = Main_config_file_dict["cpw_feedline"]
         port_config = Main_config_file_dict["port"]
 
@@ -9484,7 +12141,9 @@ class SoukFuncs:
 
         return feedline_connection_point
 
-    def get_feedline_pass_through_points(self, x, y, relative_kid_positions, Main_config_file_dict):
+    def get_feedline_pass_through_points(
+        self, x, y, relative_kid_positions, resonator_types: list[SoukResonatorType], Main_config_file_dict
+    ):
         """This will get a list of coordinates where the feedline should
         connect to the KIDs. This is the end of the coupler.
 
@@ -9500,9 +12159,16 @@ class SoukFuncs:
             meander section. This list should be the coordinates, in order, of the
             TopLeft, TopRight, BotLeft, BotRight KIDs.
 
+        resonator_types : list[SoukResonatorType]
+            This is the type of resonators drawn. The values accepted
+            here are members of the SoukResonatorType enum.
+            The order of the values passed in will be attributed to each KID
+            and should be the same order as the rel_kid_positions, TL, TR, BL,
+            BR.
+
         Main_config_file_dict : dict
             dictionary containing individual dictionarys of config settings.
-            Requires "resonator".
+            Requires "resonator" AND "cpw_feedline".
 
         Returns
         -------
@@ -9511,67 +12177,51 @@ class SoukFuncs:
             connect to the KIDs. This list has the coonection coordinates for the
             KIDs in order top left, top right, bot left, bot right.
         """
-        feed_pass_points = []
-        res_config = Main_config_file_dict["resonator"]
+        required_keys = ["resonator", "cpw_feedline"]
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_keys)
+        half_feedline_width = Main_config_file_dict["cpw_feedline"]["feedline_width"] / 2
 
-        vert_feedline_offset_from_kid_position = (
-            (res_config["meander_bot_width"] / 2)
-            - (res_config["meander_lw"] / 2)
-            + (res_config["meander_left_width_1"] - res_config["meander_left_width_2"])
-            + res_config["frame_bot_left_width"]
-            - (res_config["frame_left_lw"] / 2)
-            + (res_config["coupler_frame_left_lw"] / 2)
-            + res_config["left_coupler_frame_to_feed_distance"]
-        )
+        if not isinstance(resonator_types, (list, tuple)):
+            raise ValueError(f"resonator_types should be a list of 4 SoukResonatorTypes. Not '{resonator_types}'")
 
-        horizontal_feedline_offset_from_kid_position = (
-            res_config["meander_lw"]
-            + res_config["meander_left_height_1"]
-            + res_config["meander_left_height_2"]
-            + res_config["meander_left_height_3"]
-            + res_config["frame_left_height"]
-            + res_config["coupler_frame_left_height"]
-            + res_config["coupler_gap"]
-            + (res_config["coupler_lw"] / 2)
-        )
+        feed_pass_points: list[list[float]] = []
 
-        feed_pass_points.append(
-            [
-                x + relative_kid_positions[0][0] - horizontal_feedline_offset_from_kid_position,
-                (y + relative_kid_positions[0][1] + vert_feedline_offset_from_kid_position + 36 / 2),
-            ]
-        )  # TL
+        xy_signs = [
+            [-1, +1],
+            [+1, +1],
+            [-1, -1],
+            [+1, -1],
+        ]
 
-        feed_pass_points.append(
-            [
-                x + relative_kid_positions[1][0] + horizontal_feedline_offset_from_kid_position,
-                (y + relative_kid_positions[1][1] + vert_feedline_offset_from_kid_position + 36 / 2),
-            ]
-        )  # TR
+        for relative_kid_position, resonator_type, (x_sign, y_sign) in zip(relative_kid_positions, resonator_types, xy_signs):
 
-        feed_pass_points.append(
-            [
-                x + relative_kid_positions[2][0] - horizontal_feedline_offset_from_kid_position,
-                (y + relative_kid_positions[2][1] - vert_feedline_offset_from_kid_position - 36 / 2),
-            ]
-        )  # BL
-
-        feed_pass_points.append(
-            [
-                x + relative_kid_positions[3][0] + horizontal_feedline_offset_from_kid_position,
-                (y + relative_kid_positions[3][1] - vert_feedline_offset_from_kid_position - 36 / 2),
-            ]
-        )  # BR
+            resonator_config = Main_config_file_dict["resonator"]
+            vertical_feedline_offset_from_rel_kid_position = resonator_base_utils.get_horizontal_coupler_end_to_meander_base_distance(
+                resonator_type, config_override=resonator_config
+            )
+            horizontal_feedline_offset_from_rel_kid_position = resonator_base_utils.get_vertical_coupler_center_to_meander_base_distance(
+                resonator_type, config_override=resonator_config
+            )
+            feed_pass_points.append(
+                [
+                    x + relative_kid_position[0] + x_sign * horizontal_feedline_offset_from_rel_kid_position,
+                    y + relative_kid_position[1] + y_sign * (vertical_feedline_offset_from_rel_kid_position + half_feedline_width),
+                ]
+            )
 
         return feed_pass_points
 
-    def get_total_height_of_resonator(self, Main_config_file_dict):
+    def get_total_height_of_resonator(self, resonator_type: SoukResonatorType, Main_config_file_dict):
         """This will get the total height of the resonator from the base of the
         inductive meander to the end of the ground plane cutout at the top of
         the structure.
 
         Parameters
         ----------
+        resonator_type : SoukResonatorType
+            This is the type of resonator to get the total height of. The
+            value accepted here are members of the SoukResonatorType enum.
+
         Main_config_file_dict : dict
             dictionary containing individual dictionarys of config settings.
             Requires "resonator".
@@ -9581,28 +12231,22 @@ class SoukFuncs:
         KID_height : float
             The total height of the KID calculated from the config file.
         """
+        required_key = "resonator"
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
+        resonator_config = Main_config_file_dict["resonator"]
 
-        res_config = Main_config_file_dict["resonator"]
+        return resonator_base_utils.get_total_height_of_resonator(resonator_type, config_override=resonator_config)
 
-        KID_height = (
-            res_config["meander_lw"]
-            + res_config["meander_left_height_1"]
-            + res_config["meander_left_height_2"]
-            + res_config["meander_left_height_3"]
-            + res_config["frame_left_height"]
-            + res_config["coupler_frame_left_height"]
-            + res_config["coupler_gap"]
-            + res_config["coupler_lw"]
-            + res_config["cutout_top_offset"]
-        )
-        return KID_height
-
-    def get_width_height_of_resonator_IDC_section(self, Main_config_file_dict):
+    def get_width_height_of_resonator_IDC_section(self, resonator_type: SoukResonatorType, Main_config_file_dict):
         """This will get the total width and height of ground plane cutout
         around the IDC section of the KID.
 
         Parameters
         ----------
+        resonator_type : SoukResonatorType
+            This is the type of resonator to get the width and height of. The
+            value accepted here are members of the SoukResonatorType enum.
+
         Main_config_file_dict : dict
             dictionary containing individual dictionarys of config settings.
             Requires "resonator".
@@ -9613,37 +12257,14 @@ class SoukFuncs:
             This is a list containing, in order, the KID_width and the KID_height
             of the KID's IDC section calculated from the config file.
         """
+        required_key = "resonator"
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
+        resonator_config = Main_config_file_dict["resonator"]
 
-        res_config = Main_config_file_dict["resonator"]
-
-        KID_height = (
-            res_config["cutout_bot_offset"]
-            + res_config["frame_left_height"]
-            + res_config["coupler_frame_left_height"]
-            + res_config["coupler_gap"]
-            + res_config["coupler_lw"]
-            + res_config["cutout_top_offset"]
+        resonator_width, resonator_height = resonator_base_utils.get_width_and_height_of_IDC_cutout_section(
+            resonator_type, config_override=resonator_config
         )
-
-        left_side_width = (
-            (res_config["meander_bot_width"] / 2)
-            - (res_config["meander_lw"] / 2)
-            + (res_config["meander_left_width_1"] - res_config["meander_left_width_2"])
-            + res_config["frame_bot_left_width"]
-            + res_config["cutout_left_offset"]
-        )
-
-        right_side_width = (
-            (res_config["meander_bot_width"] / 2)
-            - (res_config["meander_lw"] / 2)
-            + (res_config["meander_right_width_1"] - res_config["meander_right_width_2"])
-            + res_config["frame_bot_right_width"]
-            + res_config["cutout_right_offset"]
-        )
-
-        KID_width = right_side_width + left_side_width
-
-        return [KID_width, KID_height]
+        return resonator_width, resonator_height
 
     def get_total_width_of_resonator(self, Main_config_file_dict):
         """This will get the total width of the resonator from the far left of
@@ -9661,7 +12282,8 @@ class SoukFuncs:
         KID_width : float
             The total width of the KID calculated from the config file.
         """
-
+        required_key = "resonator"
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
         res_config = Main_config_file_dict["resonator"]
 
         left_side_width = (
@@ -9683,7 +12305,7 @@ class SoukFuncs:
         KID_width = right_side_width + left_side_width
         return KID_width
 
-    def get_feedline_center_to_meander_base_distance(self, Main_config_file_dict):
+    def get_feedline_center_to_meander_base_distance(self, resonator_type: SoukResonatorType, Main_config_file_dict):
         """This will calculate the the vertical distance from the center of the
         feeline to where the base of the KIDs inductive meander will sit
         assuming the coupler arm buts up against the edge of the CPW feedline
@@ -9692,6 +12314,11 @@ class SoukFuncs:
 
         Parameters
         ----------
+        resonator_type : SoukResonatorType
+            This is the type of resonator to get the feedline center to
+            meander base distance for. The value accepted here are members of
+            the SoukResonatorType enum.
+
         Main_config_file_dict : dict
             dictionary containing individual dictionarys of config settings.
             Requires "resonator" AND "cpw_feedline".
@@ -9706,23 +12333,19 @@ class SoukFuncs:
             function but here this also calculates the distance to feedline
             dimension.
         """
+        required_keys = ["resonator", "cpw_feedline"]
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_keys)
+        resonator_config = Main_config_file_dict["resonator"]
 
-        res_config = Main_config_file_dict["resonator"]
-
-        feedline_to_meander_base_distance = (
-            (res_config["meander_bot_width"] / 2)
-            - (res_config["meander_lw"] / 2)
-            + (res_config["meander_left_width_1"] - res_config["meander_left_width_2"])
-            + res_config["frame_bot_left_width"]
-            - (res_config["frame_left_lw"] / 2)
-            + (res_config["coupler_frame_left_lw"] / 2)
-            + res_config["left_coupler_frame_to_feed_distance"]
-            + (Main_config_file_dict["cpw_feedline"]["feedline_width"] / 2)
+        coupler_end_to_meander_base_distance = resonator_base_utils.get_horizontal_coupler_end_to_meander_base_distance(
+            resonator_type, config_override=resonator_config
         )
+        feedline_width = Main_config_file_dict["cpw_feedline"]["feedline_width"]
+        return (feedline_width / 2) + coupler_end_to_meander_base_distance
 
-        return feedline_to_meander_base_distance
-
-    def get_relative_kid_positions(self, Main_config_file_dict):
+    def get_relative_kid_positions(
+        self, resonator_type: SoukResonatorType, Main_config_file_dict
+    ) -> tuple[list[float], list[float], list[float], list[float]]:
         """Gets the positions of the base of the KID meanders relative to the
         center of the antennas in the middle. The relative KID positions is
         returned as a list is the order, [top_left, top_right, bot_left,
@@ -9730,27 +12353,33 @@ class SoukFuncs:
 
         Parameters
         ----------
+        resonator_type : SoukResonatorType
+            This is the type of resonators to get the rel_kid_positions for.
+            The value accepted here are members of the SoukResonatorType enum.
+
         Main_config_file_dict : dict
             dictionary containing individual dictionarys of config settings.
             Requires "resonator" AND "general".
 
         Returns
         -------
-        rel_kid_positions : list
-            list of [x,y] lists that are the coordinates of the base of the KIDs
+        rel_kid_positions : tuple[list[float]]
+            tuple of [x,y] lists that are the coordinates of the base of the KIDs
             meanders. These KID positons are in order top_left, top_right,
             bot_left, bot_right.
         """
 
-        tot_kid_height = self.get_total_height_of_resonator(Main_config_file_dict)
+        tot_kid_height = self.get_total_height_of_resonator(resonator_type, Main_config_file_dict)
 
+        required_keys = ["resonator", "general"]
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_keys)
         ground_gap_between_resonators = Main_config_file_dict["resonator"]["grndpln_gap_between_adjacent_resonators"]
 
         horizontal_offset_from_center_of_antenna = (
             (Main_config_file_dict["general"]["horizontal_pitch"] / 2) - tot_kid_height - (ground_gap_between_resonators / 2)
         )
 
-        feed_to_meander_base_distance = self.get_feedline_center_to_meander_base_distance(Main_config_file_dict)
+        feed_to_meander_base_distance = self.get_feedline_center_to_meander_base_distance(resonator_type, Main_config_file_dict)
 
         vertical_offset_from_center_of_antenna = (Main_config_file_dict["general"]["vertical_pitch"] / 2) - feed_to_meander_base_distance
 
@@ -9793,7 +12422,8 @@ class SoukFuncs:
             refers to the antenna at the bottom now, left will refer to right
             antenna and so on.
         """
-
+        required_key = "antenna"
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
         ant_config = Main_config_file_dict["antenna"]
 
         ant_connect_offset_from_center = ant_config["distance_from_center"] + ant_config["straight_height"] + ant_config["taper_height"]
@@ -9856,7 +12486,8 @@ class SoukFuncs:
             The [x, y] connection point at the end of the taper for the SMA
             conector where a feedline should connect.
         """
-
+        required_keys = ["sma_connector", "cpw_feedline"]
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_keys)
         sma_config = Main_config_file_dict["sma_connector"]
         feed_config = Main_config_file_dict["cpw_feedline"]
 
@@ -10233,7 +12864,8 @@ class SoukFuncs:
             of [x,y] lists which are coordinates for the top left, top right,
             bot right, bot left points in this order.
         """
-
+        required_key = "sma_connector"
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
         sma_config = Main_config_file_dict["sma_connector"]
 
         sma_square_offset_left = sma_config["sma_square_offset_left"]  # 0
@@ -10281,7 +12913,8 @@ class SoukFuncs:
             points (similar in form to the hex_pack argument) that no longer
             clashes with any features from the exclusion list.
         """
-
+        required_key = "general"
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
         kid_block_horizontal_size = Main_config_file_dict["general"]["horizontal_pitch"]
         kid_block_vertical_size = Main_config_file_dict["general"]["vertical_pitch"]
 
@@ -10339,7 +12972,8 @@ class SoukFuncs:
             lists containing [x, y] lists defining the center of the hex points
             that no longer clashes with any features from the exclusion list.
         """
-
+        required_key = "general"
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
         kid_block_horizontal_size = Main_config_file_dict["general"]["horizontal_pitch"]
         kid_block_vertical_size = Main_config_file_dict["general"]["vertical_pitch"]
 
@@ -10471,6 +13105,8 @@ class SoukFuncs:
 
         running_list = []
 
+        required_key = "cpw_feedline"
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
         bend_rad = Main_config_file_dict["cpw_feedline"]["bend_radius"]
         extra_straight_length = Main_config_file_dict["cpw_feedline"]["extra_straight_length"]
 
@@ -10647,7 +13283,10 @@ class SoukFuncs:
             Requires "top_choke".
         """
         # Getting config
+        required_key = "top_choke"
+        self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
         top_choke_config = Main_config_file_dict["top_choke"]
+
         waveguide_hole_radius = top_choke_config["waveguide_hole_radius"]  # 1200
         anulus_width = top_choke_config["anulus_width"]  # 600
 
@@ -10664,7 +13303,7 @@ class SoukFuncs:
 
         return
 
-    def add_bottom_choke_features(self, x, y, rel_kid_positions, Main_config_file_dict):
+    def add_bottom_choke_features(self, x, y, rel_kid_positions, resonator_type: SoukResonatorType, Main_config_file_dict):
         """At the xy given, adds the bottom choke waveguide hole and creates
         IDC cutout holes. Also adds pads to support the wafer. These are added
         on seperate layers. The parameters controling the dimesions of these
@@ -10679,6 +13318,10 @@ class SoukFuncs:
             list of [x, y] lists that describe where the base of each KIDs meander
             is placed relative to the center of the antenna.
             Expected order is top_left, top_right, bot_left, bot_right
+
+        resonator_type : SoukResonatorType
+            This is the type of resonators to add bottom choke features for.
+            The value accepted here are members of the SoukResonatorType enum.
 
         Main_config_file_dict : dict
             dictionary containing individual dictionarys of config settings.
@@ -10697,40 +13340,45 @@ class SoukFuncs:
         IDC_cutout_offset_left = bottom_choke_config["IDC_cutout_offset_left"]  # 100
         IDC_cutout_offset_right = bottom_choke_config["IDC_cutout_offset_right"]  # 100
 
-        IDC_cutout_width_height = self.get_width_height_of_resonator_IDC_section(Main_config_file_dict)
-        tot_KID_height = self.get_total_height_of_resonator(Main_config_file_dict)
+        (IDC_cutout_width, IDC_cutout_height) = self.get_width_height_of_resonator_IDC_section(resonator_type, Main_config_file_dict)
+        tot_KID_height = self.get_total_height_of_resonator(resonator_type, Main_config_file_dict)
 
-        horizontal_offset_from_rel_kid_position_to_center_of_IDC_cutout = tot_KID_height - (IDC_cutout_width_height[1] / 2)
+        horizontal_offset_from_rel_kid_position_to_center_of_IDC_cutout = tot_KID_height - (IDC_cutout_height / 2)
 
         # Making the bottom choke waveguide hole
         bottom_choke_wave_guide_hole = gdspy.Round([x, y], wave_guide_hole_radius, **self.Bottom_choke_waveguide_hole)
         self.Main.add(bottom_choke_wave_guide_hole)
 
-        # Making the bottom choke pads
-        x_sign = [+1, -1, -1, +1]
-        y_sign = [+1, +1, -1, -1]
-        for i in range(4):
-            pad_xy = [x + x_sign[i] * pad_x_offset_from_center, y + y_sign[i] * pad_y_offset_from_center]
+        xy_signs = [
+            [-1, +1],
+            [+1, +1],
+            [-1, -1],
+            [+1, -1],
+        ]
 
+        for rel_kid_position, (x_sign, y_sign) in zip(rel_kid_positions, xy_signs):
+            # Making the bottom choke pads
+            pad_xy = [
+                x + x_sign * pad_x_offset_from_center,
+                y + y_sign * pad_y_offset_from_center,
+            ]
             pad_round = gdspy.Round(pad_xy, pad_radius, **self.Bottom_choke_pads)
             self.Main.add(pad_round)
 
-        # Making the bottom choke IDC cutouts
-        x_sign = [-1, +1, -1, +1]
-        for i in range(4):
             center_of_IDC_cutout_xy = [
-                x + rel_kid_positions[i][0] + x_sign[i] * horizontal_offset_from_rel_kid_position_to_center_of_IDC_cutout,
-                y + rel_kid_positions[i][1],
+                x + rel_kid_position[0] + x_sign * horizontal_offset_from_rel_kid_position_to_center_of_IDC_cutout,
+                y + rel_kid_position[1],
             ]
 
+            # Making the bottom choke IDC cutouts
             IDC_cutout = gdspy.Rectangle(
                 [
-                    center_of_IDC_cutout_xy[0] - (IDC_cutout_width_height[1] / 2) - IDC_cutout_offset_left,
-                    center_of_IDC_cutout_xy[1] - (IDC_cutout_width_height[0] / 2) - IDC_cutout_offset_bot,
+                    center_of_IDC_cutout_xy[0] - (IDC_cutout_height / 2) - IDC_cutout_offset_left,
+                    center_of_IDC_cutout_xy[1] - (IDC_cutout_width / 2) - IDC_cutout_offset_bot,
                 ],
                 [
-                    center_of_IDC_cutout_xy[0] + (IDC_cutout_width_height[1] / 2) + IDC_cutout_offset_right,
-                    center_of_IDC_cutout_xy[1] + (IDC_cutout_width_height[0] / 2) + IDC_cutout_offset_top,
+                    center_of_IDC_cutout_xy[0] + (IDC_cutout_height / 2) + IDC_cutout_offset_right,
+                    center_of_IDC_cutout_xy[1] + (IDC_cutout_width / 2) + IDC_cutout_offset_top,
                 ],
                 **self.Bottom_choke_IDC_hole,
             )
@@ -11376,7 +14024,7 @@ class SoukFuncs:
             self.ground_plane_positives.get_polygons([self.Nb_Groundplane["layer"], self.Nb_Groundplane["datatype"]]),
             self.ground_plane_cutouts,
             "not",
-            precision=0.01,
+            precision=0.001,
             **self.Nb_Groundplane,
         )
         if self.ground_plane_positives.get_polygons([self.Nb_Groundplane["layer"], self.Nb_Groundplane["datatype"]]) != []:

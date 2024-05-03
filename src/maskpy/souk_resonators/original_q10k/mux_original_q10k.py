@@ -1,81 +1,13 @@
 import numpy as np
 
 
-def get_resonator_config() -> dict:
-    """Get the config for the Q10k resonator.
-
-    This is the config used in the muxing for the Q10k design. This means only
-    this config is guaranteed to generate Q10k pixels reliably.
-
-    Returns
-    -------
-    config : dict
-        This is a config dictionary with key value pairs as variable name and
-        variable values.
-    """
-    config = {
-        "meander_lw": 2,
-        "meander_corner_bend_radius": 6,
-        "meander_bot_width": 18,
-        "meander_right_height_1": 41,
-        "meander_right_height_2": 24,
-        "meander_right_height_3": 73,
-        "meander_left_height_1": 24,
-        "meander_left_height_2": 58,
-        "meander_left_height_3": 56,
-        "meander_left_width_1": 564,
-        "meander_left_width_2": 564,
-        "meander_right_width_1": 565,
-        "meander_right_width_2": 565,
-        "ant_pad_box_width": 5,
-        "ant_pad_box_height": 10,
-        "frame_bot_lw": 8,
-        "frame_bot_left_width": 996,
-        "frame_bot_right_width": 996,
-        "frame_left_lw": 8,
-        "frame_left_height": 400,
-        "frame_right_lw": 8,
-        "frame_right_height": 400,
-        "frame_meander_cover_box_width": 5,
-        "frame_meander_cover_box_height": 48,
-        "coupler_frame_left_lw": 10,
-        "coupler_frame_left_height": 44,
-        "coupler_frame_top_lw": 8,
-        "IDC_bot_arm_gap": 30,
-        "IDC_arm_gap": 8,
-        "IDC_arm_lw": 3,
-        "No_of_arms": 28,
-        "trim_arm_offset_right_side": 380,
-        "trim_arm_offset_left_side": 389,
-        "trim_arm_lw": 3,
-        "trim_arm_length_right_side": 1975,
-        "trim_arm_length_left_side": 1975,
-        "coupler_gap": 16,
-        "coupler_lw": 8,
-        "left_coupler_frame_to_feed_distance": 164,
-        "text_size": 90,
-        "text_x_offset": 800,
-        "text_y_offset": 900,
-        "cutout_bot_offset": 15,
-        "cutout_left_offset": 50,
-        "cutout_right_offset": 50,
-        "cutout_top_offset": 30,
-        "grndpl_meander_cutout_width": 80,
-        "grndpl_meander_cutout_height": 10,
-        "grndpl_coupler_cutout_width": 10,
-        "grndpln_gap_between_adjacent_resonators": 44,
-        "grndpl_coupler_cutout_height": 30,
-        "SiO_stepdown_cutout_width": 110,
-        "SiO_stepdown_cutout_height": 0,
-        "SiN_membrane_stepdown_cutout_width": 100,
-        "SiN_membrane_stepdown_cutout_height": 0,
-    }
-    return config
-
-
-def get_IDCLs_and_CCL_from_f0(f0: float, rounding_precision: int | None = 2):
-    """Get the IDC lengths and CC length for a resonator given a resonant
-    frequency in Hz. These lengths are by default rounded to 2 decimal places.
+def get_IDCLs_and_CCL_from_f0(
+    f0: float,
+    rounding_precision: int | None = 2,
+) -> tuple[list[float | int], float | int]:
+    """Get the IDC lengths and CC length (both in microns) for a resonator
+    given a resonant frequency in Hz. These lengths are by default rounded to
+    2 decimal places.
 
     Parameters
     ----------
@@ -117,21 +49,93 @@ def get_IDCLs_and_CCL_from_f0(f0: float, rounding_precision: int | None = 2):
         raise (Exception(f"Desired frequency out of range. Should be within range {min_freq} -> {max_freq}"))
 
     # Fits from data.
-    arms_1_4_IDC_f0_polyfit = [6.767696709327338e-23, -4.0998243440291944e-13, 0.000819677631910575, -539164.0136003464]
-    arms_5_8_IDC_f0_polyfit = [6.730329291630004e-24, -4.268600455043413e-14, 8.462222866515004e-05, -49975.12714434396]
-    arms_9_12_IDC_f0_polyfit = [3.485444963206079e-24, -2.3590757667167347e-14, 4.8811269516983334e-05, -28215.313711449875]
-    arms_13_16_IDC_f0_polyfit = [9.845730863469365e-25, -6.877032261889292e-15, 1.2526532983062344e-05, -1977.6667747536535]
-    arms_17_20_IDC_f0_polyfit = [9.443531070041871e-26, -2.654295099140603e-16, -3.2524344435929964e-06, 10823.993211480463]
-    arms_21_24_IDC_f0_polyfit = [-1.1147316377050832e-25, 1.4570979929442625e-15, -7.719109582100416e-06, 15138.846451306348]
-    arms_25_28_IDC_f0_polyfit = [-2.801791330399383e-25, 3.2864652121492133e-15, -1.4287781040336895e-05, 23825.298205884836]
+    # IDC against resonant frequency polyfits
+    arms_1_4_IDC_f0_polyfit = [
+        6.767696709327338e-23,
+        -4.0998243440291944e-13,
+        0.000819677631910575,
+        -539164.0136003464,
+    ]
+    arms_5_8_IDC_f0_polyfit = [
+        6.730329291630004e-24,
+        -4.268600455043413e-14,
+        8.462222866515004e-05,
+        -49975.12714434396,
+    ]
+    arms_9_12_IDC_f0_polyfit = [
+        3.485444963206079e-24,
+        -2.3590757667167347e-14,
+        4.8811269516983334e-05,
+        -28215.313711449875,
+    ]
+    arms_13_16_IDC_f0_polyfit = [
+        9.845730863469365e-25,
+        -6.877032261889292e-15,
+        1.2526532983062344e-05,
+        -1977.6667747536535,
+    ]
+    arms_17_20_IDC_f0_polyfit = [
+        9.443531070041871e-26,
+        -2.654295099140603e-16,
+        -3.2524344435929964e-06,
+        10823.993211480463,
+    ]
+    arms_21_24_IDC_f0_polyfit = [
+        -1.1147316377050832e-25,
+        1.4570979929442625e-15,
+        -7.719109582100416e-06,
+        15138.846451306348,
+    ]
+    arms_25_28_IDC_f0_polyfit = [
+        -2.801791330399383e-25,
+        3.2864652121492133e-15,
+        -1.4287781040336895e-05,
+        23825.298205884836,
+    ]
 
-    arms_1_4_CC_f0_polyfit = [-1.6060511535332507e-22, 9.798359652954358e-13, -0.0019941373079622334, 1355558.2923700206]
-    arms_5_8_CC_f0_polyfit = [3.826678033412186e-23, -2.4359149810072817e-13, 0.0005147621732587452, -359542.0813002416]
-    arms_9_12_CC_f0_polyfit = [-1.0365061470132613e-23, 7.48295766256644e-14, -0.00018113510144262927, 148136.87440822576]
-    arms_13_16_CC_f0_polyfit = [-2.617278235412754e-24, 2.1390330519786914e-14, -5.8900447871742394e-05, 55487.868982187225]
-    arms_17_20_CC_f0_polyfit = [-3.3011190814655043e-25, 3.4999958695322288e-15, -1.2482352491053908e-05, 15561.645803368623]
-    arms_21_24_CC_f0_polyfit = [-2.3442630698128755e-25, 2.5830613479870064e-15, -9.739844107703402e-06, 13012.011320133017]
-    arms_25_28_CC_f0_polyfit = [-2.138881161222542e-25, 2.619737848761559e-15, -1.0867933721816246e-05, 15636.17994038814]
+    # Coupler against resonant frequency polyfits
+    arms_1_4_CC_f0_polyfit = [
+        -1.6060511535332507e-22,
+        9.798359652954358e-13,
+        -0.0019941373079622334,
+        1355558.2923700206,
+    ]
+    arms_5_8_CC_f0_polyfit = [
+        3.826678033412186e-23,
+        -2.4359149810072817e-13,
+        0.0005147621732587452,
+        -359542.0813002416,
+    ]
+    arms_9_12_CC_f0_polyfit = [
+        -1.0365061470132613e-23,
+        7.48295766256644e-14,
+        -0.00018113510144262927,
+        148136.87440822576,
+    ]
+    arms_13_16_CC_f0_polyfit = [
+        -2.617278235412754e-24,
+        2.1390330519786914e-14,
+        -5.8900447871742394e-05,
+        55487.868982187225,
+    ]
+    arms_17_20_CC_f0_polyfit = [
+        -3.3011190814655043e-25,
+        3.4999958695322288e-15,
+        -1.2482352491053908e-05,
+        15561.645803368623,
+    ]
+    arms_21_24_CC_f0_polyfit = [
+        -2.3442630698128755e-25,
+        2.5830613479870064e-15,
+        -9.739844107703402e-06,
+        13012.011320133017,
+    ]
+    arms_25_28_CC_f0_polyfit = [
+        -2.138881161222542e-25,
+        2.619737848761559e-15,
+        -1.0867933721816246e-05,
+        15636.17994038814,
+    ]
 
     # Making fits into polynomial functions.
     arms_1_4_IDC_f0_polyfunc = np.poly1d(arms_1_4_IDC_f0_polyfit)
@@ -202,7 +206,7 @@ def get_IDCLs_and_CCL_from_f0(f0: float, rounding_precision: int | None = 2):
 
     else:
         print("error occured")
-        return Exception("error in obtaining IDCL and CCL")
+        return Exception("Error in obtaining IDCL and CCL.")
 
     if isinstance(rounding_precision, int):
         IDC_array = np.round(IDC_array, rounding_precision)

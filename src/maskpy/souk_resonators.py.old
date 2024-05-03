@@ -1,0 +1,60 @@
+from enum import Enum, StrEnum
+
+from .souk_resonators.configs import (config_high_volume_v1_q20k,
+                                      config_high_volume_v2_q20k,
+                                      config_original_q10k,
+                                      config_original_q20k,
+                                      config_original_q50k)
+
+
+class ResonatorType(StrEnum):
+    # class ResonatorType(Enum):
+    """Type of a Resonaotr."""
+
+    ORIGINAL_Q50K = "original_q50k"
+    ORIGINAL_Q20K = "original_q20k"
+    ORIGINAL_Q10K = "original_q10k"
+    HIGH_VOLUME_V1_Q20K = "high_volume_v1_q20k"
+    HIGH_VOLUME_V2_Q20K = "high_volume_v2_q20k"
+
+    @classmethod
+    def _missing_(cls, value):
+        value = value.upper()
+        for member in cls:
+            if member == value:
+                return member
+        return None
+
+
+def get_resonator_config(resonator_type: ResonatorType) -> dict:
+    """Get the config for a resonator of a given ResonatorType.
+
+    This is the config used in muxing these resonators. This means only the
+    config returned here is guaranteed to generate pixels reliably.
+
+    Parameters
+    ----------
+    resonator_type : ResonatorType
+        The type of resonator. Only accepts members of Enum ResonatorType.
+
+    Returns
+    -------
+    config : dict
+        This is a config dictionary with key value pairs as variable name and
+        variable values.
+    """
+    match resonator_type:
+        case ResonatorType.ORIGINAL_Q10K:
+            config = config_original_q10k.get_resonator_config()
+        case ResonatorType.ORIGINAL_Q20K:
+            config = config_original_q20k.get_resonator_config()
+        case ResonatorType.ORIGINAL_Q50K:
+            config = config_original_q50k.get_resonator_config()
+        case ResonatorType.HIGH_VOLUME_V1_Q20K:
+            config = config_high_volume_v1_q20k.get_resonator_config()
+        case ResonatorType.HIGH_VOLUME_V2_Q20K:
+            config = config_high_volume_v2_q20k.get_resonator_config()
+        case _:
+            raise (ValueError(f"ResonatorType does not have an associated config."))
+
+    return config
