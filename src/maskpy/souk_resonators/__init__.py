@@ -1,5 +1,5 @@
 from .resonator_types import SoukResonatorType
-from .utils.resonator_base_utils import (
+from .utils.souk_resonator_base_utils import (
     get_horizontal_coupler_end_to_meander_base_distance,
     get_resonator_config,
     get_total_height_of_resonator,

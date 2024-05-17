@@ -21,8 +21,9 @@ from phidl import geometry as phgeom
 from shapely import geometry as shapely_geom
 from tqdm import tqdm
 
+from . import amber_resonators, souk_resonators
+from .amber_resonators import AmberResonatorType
 from .souk_resonators import SoukResonatorType
-from .souk_resonators.utils import resonator_base_utils
 
 
 class SoukMaskBuilder:
@@ -4071,6 +4072,47 @@ class SoukMaskBuilder:
 
         return
 
+    def add_amber_resonator(
+        self,
+        resonator_type: SoukResonatorType | AmberResonatorType,
+        x: float,
+        y: float,
+        rot_angle: float,
+        f0: float | int,
+        config_override: dict | None = None,
+        mux_func_override: Callable | None = None,
+        mirror=False,
+        IDC_and_frame_material="IDC_Nb",
+        meander_material="IDC_Nb",
+        add_grnd_cutout=True,
+        add_SiN_dep_dielectric_cutout=True,
+        add_SiO_cutout=True,
+        add_SiN_membrane_cutout=True,
+        add_backside_check=True,
+        add_grnd_cutout_over_inductor=False,
+        add_SiN_dep_dielectric_cutout_over_inductor=False,
+    ) -> None:
+        """Test"""
+
+        match resonator_type:
+            case AmberResonatorType.ORIGINAL_Q50K:
+                amber_resonators.original_q50k.draw(
+                    self,
+                    x,
+                    y,
+                    rot_angle,
+                    f0,
+                    config_override=config_override,
+                    mux_func_override=mux_func_override,
+                    mirror=mirror,
+                    IDC_and_frame_material=IDC_and_frame_material,
+                    meander_material=meander_material,
+                )
+
+                return
+            case _:
+                raise (ValueError(f"AmberResonatorType '{resonator_type}' does not have an associated draw function."))
+
     def add_resonator_original(
         self,
         x,
@@ -4092,7 +4134,7 @@ class SoukMaskBuilder:
         add_SiN_dep_dielectric_cutout_over_inductor=False,
         return_configurator_points=False,
     ):
-        """Adds the KID geometry to the Main cell athe the x,y cooardinate
+        """Adds the KID geometry to the Main cell at the x,y cooardinate
         given. The KID is placed where the base middle of the inductive meander
         is at this x,y. The KID geometry is defined by the dimensions within
         the Main_config_file_dict. By default it will, but optionally can
@@ -12196,10 +12238,10 @@ class SoukMaskBuilder:
         for relative_kid_position, resonator_type, (x_sign, y_sign) in zip(relative_kid_positions, resonator_types, xy_signs):
 
             resonator_config = Main_config_file_dict["resonator"]
-            vertical_feedline_offset_from_rel_kid_position = resonator_base_utils.get_horizontal_coupler_end_to_meander_base_distance(
+            vertical_feedline_offset_from_rel_kid_position = souk_resonators.get_horizontal_coupler_end_to_meander_base_distance(
                 resonator_type, config_override=resonator_config
             )
-            horizontal_feedline_offset_from_rel_kid_position = resonator_base_utils.get_vertical_coupler_center_to_meander_base_distance(
+            horizontal_feedline_offset_from_rel_kid_position = souk_resonators.get_vertical_coupler_center_to_meander_base_distance(
                 resonator_type, config_override=resonator_config
             )
             feed_pass_points.append(
@@ -12235,7 +12277,7 @@ class SoukMaskBuilder:
         self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
         resonator_config = Main_config_file_dict["resonator"]
 
-        return resonator_base_utils.get_total_height_of_resonator(resonator_type, config_override=resonator_config)
+        return souk_resonators.get_total_height_of_resonator(resonator_type, config_override=resonator_config)
 
     def get_width_height_of_resonator_IDC_section(self, resonator_type: SoukResonatorType, Main_config_file_dict):
         """This will get the total width and height of ground plane cutout
@@ -12261,7 +12303,7 @@ class SoukMaskBuilder:
         self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_key)
         resonator_config = Main_config_file_dict["resonator"]
 
-        resonator_width, resonator_height = resonator_base_utils.get_width_and_height_of_IDC_cutout_section(
+        resonator_width, resonator_height = souk_resonators.get_width_and_height_of_IDC_cutout_section(
             resonator_type, config_override=resonator_config
         )
         return resonator_width, resonator_height
@@ -12337,7 +12379,7 @@ class SoukMaskBuilder:
         self.validate_if_config_dict_has_required_keys(Main_config_file_dict, required_keys)
         resonator_config = Main_config_file_dict["resonator"]
 
-        coupler_end_to_meander_base_distance = resonator_base_utils.get_horizontal_coupler_end_to_meander_base_distance(
+        coupler_end_to_meander_base_distance = souk_resonators.get_horizontal_coupler_end_to_meander_base_distance(
             resonator_type, config_override=resonator_config
         )
         feedline_width = Main_config_file_dict["cpw_feedline"]["feedline_width"]
