@@ -1,30 +1,26 @@
-from .config_high_volume_v2_long_trunk_q20k import get_resonator_config
+from ..resonator_types import SoukResonatorType
+from ..utils.get_config import get_resonator_config
 
 
-def _get_config_checking_override(config_override: dict[str, float | int] | None) -> dict[str, float | int]:
-
-    if config_override is not None:
-        if isinstance(config_override, dict):
-            return config_override
-        else:
-            print(f"\033[93mWarning: config_override not of correct format. Defaulting to using base config\033[0m")
-            return get_resonator_config()
-    else:
-        return get_resonator_config()
+def _this_resonator_type() -> SoukResonatorType:
+    return SoukResonatorType.HIGH_VOLUME_V2_LONG_TRUNK_Q20K
 
 
-def get_total_height_of_resonator(config_override: dict[str, float | int] | None = None) -> float:
+def get_total_height_of_resonator(
+    resonator_config_override: dict[str, float | int] | None = None,
+) -> float:
     """This will get the total height of the resonator from the base of the
     inductive meander to the end of the ground plane cutout at the top of
     the structure.
 
-    Parameters
-    ----------
-    config_override : dict | None
-        This is an optional override to the base config for this resonator type.
-        If nothing is provided the base config for this resonator will be used.
-        When provided, this should be a dictionary conating all the keys
-        required for this resonator type.
+    KwArgs
+    ------
+    resonator_config_override: dict[str, float | int] | None = None
+        This is an optional override dictionary containing key value pairs for
+        variable name and that variable's value respectively. Any keys required
+        that do not exist in this dict will be got from the default config. If
+        extra keys that are not expected are provided a warnimg will be printed
+        but nothing is done with those.
 
     Returns
     -------
@@ -32,7 +28,7 @@ def get_total_height_of_resonator(config_override: dict[str, float | int] | None
         The total height of the resonator calculated from the config file.
     """
 
-    config = _get_config_checking_override(config_override)
+    config = get_resonator_config(_this_resonator_type(), resonator_config_override=resonator_config_override)
 
     total_resonator_height = (
         config["meander_lw"]
@@ -50,19 +46,22 @@ def get_total_height_of_resonator(config_override: dict[str, float | int] | None
     return total_resonator_height
 
 
-def get_horizontal_coupler_end_to_meander_base_distance(config_override: dict[str, float | int] | None = None) -> float:
+def get_horizontal_coupler_end_to_meander_base_distance(
+    resonator_config_override: dict[str, float | int] | None = None,
+) -> float:
     """This will calculate the the horizonatal distance between the end of the
     coupler arm (where it would connect to a feedline) and the center of the
     base of the resonator's inductive meander. This is calculated from the
     config.
 
-    Parameters
-    ----------
-    config_override : dict | None
-        This is an optional override to the base config for this resonator type.
-        If nothing is provided the base config for this resonator will be used.
-        When provided, this should be a dictionary conating all the keys
-        required for this resonator type.
+    KwArgs
+    ------
+    resonator_config_override: dict[str, float | int] | None = None
+        This is an optional override dictionary containing key value pairs for
+        variable name and that variable's value respectively. Any keys required
+        that do not exist in this dict will be got from the default config. If
+        extra keys that are not expected are provided a warnimg will be printed
+        but nothing is done with those.
 
     Returns
     -------
@@ -86,18 +85,21 @@ def get_horizontal_coupler_end_to_meander_base_distance(config_override: dict[st
     return coupler_end_to_meander_base_distance
 
 
-def get_vertical_coupler_center_to_meander_base_distance(config_override: dict[str, float | int] | None = None) -> float:
+def get_vertical_coupler_center_to_meander_base_distance(
+    resonator_config_override: dict[str, float | int] | None = None,
+) -> float:
     """This will calculate the the vertical distance between the center of the
     coupler arm and the base of the resonator's inductive meander. This is
     calculated from the config.
 
-    Parameters
-    ----------
-    config_override : dict | None
-        This is an optional override to the base config for this resonator type.
-        If nothing is provided the base config for this resonator will be used.
-        When provided, this should be a dictionary conating all the keys
-        required for this resonator type.
+    KwArgs
+    ------
+    resonator_config_override: dict[str, float | int] | None = None
+        This is an optional override dictionary containing key value pairs for
+        variable name and that variable's value respectively. Any keys required
+        that do not exist in this dict will be got from the default config. If
+        extra keys that are not expected are provided a warnimg will be printed
+        but nothing is done with those.
 
     Returns
     -------
@@ -105,7 +107,7 @@ def get_vertical_coupler_center_to_meander_base_distance(config_override: dict[s
         The distance between the coupler center and the base of the resonator's
         inductive meander.
     """
-    config = _get_config_checking_override(config_override)
+    config = get_resonator_config(_this_resonator_type(), resonator_config_override=resonator_config_override)
 
     coupler_center_to_meander_base_distance = (
         config["meander_lw"]
@@ -121,20 +123,20 @@ def get_vertical_coupler_center_to_meander_base_distance(config_override: dict[s
     return coupler_center_to_meander_base_distance
 
 
-def get_width_and_height_of_IDC_cutout_section(config_override: dict[str, float | int] | None = None) -> tuple[
-    float | int,
-    float | int,
-]:
+def get_width_and_height_of_IDC_cutout_section(
+    resonator_config_override: dict[str, float | int] | None = None,
+) -> tuple[float | int, float | int]:
     """Get the total width and height of ground plane cutout around the IDC
     section of the resonator calculated from the config.
 
-    Parameters
-    ----------
-    config_override : dict | None
-        This is an optional override to the base config for this resonator type.
-        If nothing is provided the base config for this resonator will be used.
-        When provided, this should be a dictionary conating all the keys
-        required for this resonator type.
+    KwArgs
+    ------
+    resonator_config_override: dict[str, float | int] | None = None
+        This is an optional override dictionary containing key value pairs for
+        variable name and that variable's value respectively. Any keys required
+        that do not exist in this dict will be got from the default config. If
+        extra keys that are not expected are provided a warnimg will be printed
+        but nothing is done with those.
 
     Returns
     -------
@@ -142,7 +144,7 @@ def get_width_and_height_of_IDC_cutout_section(config_override: dict[str, float 
         This is a tuple containing, in order, the width and the height
         of the resonator's IDC section calculated from the config file.
     """
-    config = _get_config_checking_override(config_override)
+    config = get_resonator_config(_this_resonator_type(), resonator_config_override=resonator_config_override)
 
     left_side_width = (
         (config["meander_bot_width"] / 2)

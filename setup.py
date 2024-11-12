@@ -2,8 +2,7 @@
 import re
 from pathlib import Path
 
-from setuptools import find_packages
-from setuptools import setup
+from setuptools import find_packages, setup
 
 
 def read(*names, **kwargs):
@@ -29,7 +28,6 @@ setup(
     include_package_data=True,
     zip_safe=False,
     classifiers=[
-        # complete classifier list: http://pypi.python.org/pypi?%3Aaction=list_classifiers
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)" "Operating System :: Unix",
@@ -45,10 +43,6 @@ setup(
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: Implementation :: CPython",
         "Programming Language :: Python :: Implementation :: PyPy",
-        # uncomment if you test on these interpreters:
-        # "Programming Language :: Python :: Implementation :: IronPython",
-        # "Programming Language :: Python :: Implementation :: Jython",
-        # "Programming Language :: Python :: Implementation :: Stackless",
         "Topic :: Utilities",
     ],
     project_urls={
@@ -57,24 +51,23 @@ setup(
         "Issue Tracker": "https://github.com/Alan-Manning/python-maskpy/issues",
     },
     keywords=[
-        # eg: "keyword1", "keyword2", "keyword3",
+        "maskpy",
+        "gds",
+        "gdsii",
+        ".gds",
     ],
-    python_requires=">=3.8",
+    python_requires=">=3.10",
     install_requires=[
         "click",
-        "pandas",
         "gdspy",
+        "openpyxl",
+        "pandas",
         "phidl",
+        "pyyaml",
         "shapely",
         "tqdm",
-        "PyQt6",
-        "openpyxl",
     ],
-    extras_require={
-        # eg:
-        #   "rst": ["docutils>=0.11"],
-        #   ":python_version=="2.6"": ["argparse"],
-    },
+    extras_require={},
     entry_points={
         "console_scripts": [
             "maskpy = maskpy.cli:main",

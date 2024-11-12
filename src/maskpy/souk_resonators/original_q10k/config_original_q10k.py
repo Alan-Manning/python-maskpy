@@ -1,5 +1,5 @@
-def get_resonator_config() -> dict:
-    """Get the config for the ORIGINAL_Q10k resonator.
+def get_default_resonator_config() -> dict[str, float | int]:
+    """Get the default config for the ORIGINAL_Q10k resonator.
 
     This is the config used in the muxing for the Q10k design. This means only
     this config is guaranteed to generate Q10k pixels reliably.
@@ -26,7 +26,7 @@ def get_resonator_config() -> dict:
         "meander_right_width_2": 565,
         "meander_step_back_from_frame": 0,  ## Added
         "ant_pad_box_width": 5,
-        "ant_pad_box_height": 10,
+        "ant_pad_box_height": 13,
         "frame_bot_lw": 8,
         "frame_bot_left_width": 996,
         "frame_bot_right_width": 996,

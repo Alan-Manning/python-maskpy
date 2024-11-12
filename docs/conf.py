@@ -1,19 +1,19 @@
 import os
 
 extensions = [
+    "sphinx.ext.napoleon",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.coverage",
     "sphinx.ext.doctest",
     "sphinx.ext.extlinks",
     "sphinx.ext.ifconfig",
-    "sphinx.ext.napoleon",
     "sphinx.ext.todo",
     "sphinx.ext.viewcode",
 ]
 source_suffix = ".rst"
 master_doc = "index"
-project = "Maskpy"
+project = "maskpy"
 year = "2024"
 author = "Alan Manning"
 copyright = f"{year}, {author}"
@@ -28,8 +28,11 @@ extlinks = {
 # on_rtd is whether we are on readthedocs.org
 on_rtd = os.environ.get("READTHEDOCS", None) == "True"
 
-if not on_rtd:  # only set the theme if we are building docs locally
-    html_theme = "sphinx_rtd_theme"
+# if not on_rtd:  # only set the theme if we are building docs locally
+#     html_theme = "sphinx_rtd_theme"
+
+# if not on_rtd:  # only set the theme if we are building docs locally
+html_theme = "sphinx_rtd_theme"
 
 html_use_smartypants = True
 html_last_updated_fmt = "%b %d, %Y"
@@ -39,6 +42,18 @@ html_sidebars = {
 }
 html_short_title = f"{project}-{version}"
 
+autodoc_default_options = {"members": None, "undoc-members": None, "private-members": None, "show-inheritance": None}
+
+napoleon_numpy_docstring = True
+napoleon_include_init_with_doc = False
 napoleon_use_ivar = True
-napoleon_use_rtype = False
 napoleon_use_param = False
+napoleon_use_rtype = False
+napoleon_preprocess_types = True
+# napoleon_type_aliases = None
+napoleon_custom_sections = [("KwArgs", "Keyword Arguments")]
+
+# old
+# napoleon_use_ivar = True
+# napoleon_use_rtype = False
+# napoleon_use_param = False

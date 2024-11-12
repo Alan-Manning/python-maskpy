@@ -1,0 +1,98 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$ref": "#/definitions/LayerProperies",
+    "definitions": {
+        "LayerProperies": {
+            "type": "object",
+            "additionalProperties": true,
+            "patternProperties": {
+                "^\\w+$": {
+                    "$ref": "#/definitions/LayerProperty"
+                }
+            }
+        },
+        "LayerProperty": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "frame-color": {
+                    "title": "frame-color",
+                    "type": "string"
+                },
+                "fill-color": {
+                    "title": "fill-color",
+                    "type": "string"
+                },
+                "frame-brightness": {
+                    "title": "frame-brightness",
+                    "type": "string"
+                },
+                "fill-brightness": {
+                    "title": "fill-brightness",
+                    "type": "string"
+                },
+                "dither-pattern": {
+                    "title": "dither-pattern",
+                    "type": "string"
+                },
+                "line-style": {
+                    "title": "line-style",
+                    "type": "string"
+                },
+                "valid": {
+                    "title": "valid",
+                    "type": "string"
+                },
+                "visible": {
+                    "title": "visible",
+                    "type": "string"
+                },
+                "transparent": {
+                    "title": "transparent",
+                    "type": "string"
+                },
+                "width": {
+                    "title": "width",
+                    "type": "string"
+                },
+                "marked": {
+                    "title": "marked",
+                    "type": "string"
+                },
+                "xfill": {
+                    "title": "xfill",
+                    "type": "string"
+                },
+                "animation": {
+                    "title": "animation",
+                    "type": "string"
+                },
+                "name": {
+                    "title": "name",
+                    "type": "string"
+                },
+                "source": {
+                    "title": "source",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "frame-color",
+                "fill-color",
+                "frame-brightness",
+                "fill-brightness",
+                "dither-pattern",
+                "line-style",
+                "valid",
+                "visible",
+                "transparent",
+                "width",
+                "marked",
+                "xfill",
+                "animation",
+                "name",
+                "source"
+            ]
+        }
+    }
+}

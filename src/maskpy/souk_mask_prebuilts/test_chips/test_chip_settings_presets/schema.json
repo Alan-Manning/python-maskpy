@@ -1,0 +1,369 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$ref": "#/definitions/TestChipsSettings",
+    "definitions": {
+        "TestChipsSettings": {
+            "type": "object",
+            "additionalProperties": true,
+            "patternProperties": {
+                "^chip_\\d+$": {
+                    "$ref": "#/definitions/TestChipSettings"
+                }
+            }
+        },
+        "TestChipSettings": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "chip_id": {
+                    "title": "chip_id",
+                    "type": "integer"
+                },
+                "top_right_text": {
+                    "title": "top_right_text",
+                    "type": "string"
+                },
+                "top_left_text": {
+                    "title": "top_left_text",
+                    "type": "string"
+                },
+                "bottom_left_text": {
+                    "title": "bottom_left_text",
+                    "type": "string"
+                },
+                "add_groundplane_under_test_chip": {
+                    "title": "add_groundplane_under_test_chip",
+                    "type": "boolean"
+                },
+                "add_SiN_dep_under_test_chip": {
+                    "title": "add_SiN_dep_under_test_chip",
+                    "type": "boolean"
+                },
+                "add_ports": {
+                    "title": "add_ports",
+                    "type": "boolean"
+                },
+                "quad_0_settings": {
+                    "title": "quad_0_settings",
+                    "$ref": "#/definitions/QuadSettings"
+                },
+                "quad_1_settings": {
+                    "title": "quad_1_settings",
+                    "$ref": "#/definitions/QuadSettings"
+                },
+                "quad_2_settings": {
+                    "title": "quad_2_settings",
+                    "$ref": "#/definitions/QuadSettings"
+                },
+                "quad_3_settings": {
+                    "title": "quad_3_settings",
+                    "$ref": "#/definitions/QuadSettings"
+                },
+                "cpw_feedline_config_override": {
+                    "title": "cpw_feedline_config_override",
+                    "$ref": "#/definitions/cpw_feedline_config_override"
+                },
+                "port_config_override": {
+                    "title": "port_config_override",
+                    "$ref": "#/definitions/port_config_override"
+                }
+            },
+            "required": [
+                "chip_id",
+                "top_right_text",
+                "top_left_text",
+                "bottom_left_text",
+                "add_ports",
+                "quad_0_settings",
+                "quad_1_settings",
+                "quad_2_settings",
+                "quad_3_settings"
+            ]
+        },
+        "QuadSettings": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "resonator_type": {
+                    "title": "resonator_type",
+                    "$ref": "#/definitions/SoukResonatorType"
+                },
+                "add_antenna": {
+                    "title": "add_antenna",
+                    "type": "boolean"
+                },
+                "antenna_rotation": {
+                    "title": "antenna_rotation",
+                    "type": "number"
+                },
+                "text_under_quad": {
+                    "title": "text_under_quad",
+                    "type": "string"
+                },
+                "couple_KID_to_ANT": {
+                    "title": "couple_KID_to_ANT",
+                    "type": "boolean"
+                },
+                "add_filter_bank": {
+                    "title": "add_filter_bank",
+                    "$ref": "#/definitions/add_filter_bank"
+                },
+                "add_top_choke_features": {
+                    "title": "add_top_choke_features",
+                    "type": "boolean"
+                },
+                "add_bot_choke_features": {
+                    "title": "add_bot_choke_features",
+                    "type": "boolean"
+                },
+                "meander_materials": {
+                    "title": "meander_materials",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/meander_materials"
+                    },
+                    "minItems": 4,
+                    "maxItems": 4
+                },
+                "IDC_and_frame_materials": {
+                    "title": "IDC_and_frame_materials",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/IDC_and_frame_materials"
+                    },
+                    "minItems": 4,
+                    "maxItems": 4
+                },
+                "mux_func_overrides": {
+                    "title": "mux_func_overrides",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mux_func_overrides"
+                    },
+                    "minItems": 4,
+                    "maxItems": 4
+                },
+                "trim_lengths": {
+                    "title": "trim_lengths",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/trim_lengths"
+                    },
+                    "minItems": 4,
+                    "maxItems": 4
+                },
+                "add_grnd_cutout": {
+                    "title": "add_grnd_cutout",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/add_grnd_cutout"
+                    },
+                    "minItems": 4,
+                    "maxItems": 4
+                },
+                "add_SiN_dep_dielectric_around": {
+                    "title": "add_SiN_dep_dielectric_around",
+                    "type": "boolean"
+                },
+                "add_SiN_dep_dielectric_cutout": {
+                    "title": "add_SiN_dep_dielectric_cutout",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/add_SiN_dep_dielectric_cutout"
+                    },
+                    "minItems": 4,
+                    "maxItems": 4
+                },
+                "add_SiO_cutout": {
+                    "title": "add_SiO_cutout",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/add_SiO_cutout"
+                    },
+                    "minItems": 4,
+                    "maxItems": 4
+                },
+                "add_SiN_membrane_cutout": {
+                    "title": "add_SiN_membrane_cutout",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/add_SiN_membrane_cutout"
+                    },
+                    "minItems": 4,
+                    "maxItems": 4
+                },
+                "add_backside_check": {
+                    "title": "add_backside_check",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/add_backside_check"
+                    },
+                    "minItems": 4,
+                    "maxItems": 4
+                },
+                "add_grnd_cutout_over_inductor": {
+                    "title": "add_grnd_cutout_over_inductor",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/add_grnd_cutout_over_inductor"
+                    },
+                    "minItems": 4,
+                    "maxItems": 4
+                },
+                "add_SiN_dep_dielectric_cutout_over_inductor": {
+                    "title": "add_SiN_dep_dielectric_cutout_over_inductor",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/add_SiN_dep_dielectric_cutout_over_inductor"
+                    },
+                    "minItems": 4,
+                    "maxItems": 4
+                },
+                "add_Aluminium_Patch_and_Etch": {
+                    "title": "add_Aluminium_Patch_and_Etch",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/add_Aluminium_Patch_and_Etch"
+                    },
+                    "minItems": 4,
+                    "maxItems": 4
+                },
+                "resonator_config_overrides": {
+                    "title": "resonator_config_overrides",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/resonator_config_overrides"
+                    },
+                    "minItems": 4,
+                    "maxItems": 4
+                },
+                "general_config_override": {
+                    "title": "general_config_override",
+                    "$ref": "#/definitions/general_config_override"
+                },
+                "antenna_config_override": {
+                    "title": "antenna_config_override",
+                    "$ref": "#/definitions/antenna_config_override"
+                },
+                "antenna_cpw_microstrip_trans_config_override": {
+                    "title": "antenna_cpw_microstrip_trans_config_override",
+                    "$ref": "#/definitions/antenna_cpw_microstrip_trans_config_override"
+                },
+                "filter_bank_config_override": {
+                    "title": "filter_bank_config_override",
+                    "$ref": "#/definitions/filter_bank_config_override"
+                },
+                "filter_bank_ring_overlap_config_override": {
+                    "title": "filter_bank_ring_overlap_config_override",
+                    "$ref": "#/definitions/filter_bank_ring_overlap_config_override"
+                },
+                "Hi_pass_filters_config_override": {
+                    "title": "Hi_pass_filters_config_override",
+                    "$ref": "#/definitions/Hi_pass_filters_config_override"
+                },
+                "Lo_pass_filters_config_override": {
+                    "title": "Lo_pass_filters_config_override",
+                    "$ref": "#/definitions/Lo_pass_filters_config_override"
+                },
+                "combiner_section_90ghz_config_override": {
+                    "title": "combiner_section_90ghz_config_override",
+                    "$ref": "#/definitions/combiner_section_90ghz_config_override"
+                },
+                "combiner_section_150ghz_config_override": {
+                    "title": "combiner_section_150ghz_config_override",
+                    "$ref": "#/definitions/combiner_section_150ghz_config_override"
+                },
+                "top_choke_config_override": {
+                    "title": "top_choke_config_override",
+                    "$ref": "#/definitions/top_choke_config_override"
+                },
+                "bottom_choke_config_override": {
+                    "title": "bottom_choke_config_override",
+                    "$ref": "#/definitions/bottom_choke_config_override"
+                }
+            },
+            "required": [
+                "resonator_type",
+                "add_antenna",
+                "antenna_rotation",
+                "text_under_quad",
+                "couple_KID_to_ANT",
+                "add_filter_bank",
+                "add_top_choke_features",
+                "add_bot_choke_features",
+                "meander_materials",
+                "IDC_and_frame_materials"
+            ]
+        },
+        "cpw_feedline_config_override": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "feedline_width": {
+                    "title": "feedline_width",
+                    "type": "number"
+                },
+                "cutout_around_feedline_width": {
+                    "title": "cutout_around_feedline_width",
+                    "type": "number"
+                },
+                "dielectric_under_feedline_width": {
+                    "title": "dielectric_under_feedline_width",
+                    "type": "number"
+                },
+                "bend_radius": {
+                    "title": "bend_radius",
+                    "type": "number"
+                },
+                "extra_straight_length": {
+                    "title": "extra_straight_length",
+                    "type": "number"
+                },
+                "bridge_gap": {
+                    "title": "bridge_gap",
+                    "type": "number"
+                },
+                "bridge_width": {
+                    "title": "bridge_width",
+                    "type": "number"
+                }
+            },
+            "required": []
+        },
+        "port_config_override": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "outer_feedline_width": {
+                    "title": "outer_feedline_width",
+                    "type": "number"
+                },
+                "outer_cutout_around_feedline_width": {
+                    "title": "outer_cutout_around_feedline_width",
+                    "type": "number"
+                },
+                "outer_dielectric_under_feedline_width": {
+                    "title": "outer_dielectric_under_feedline_width",
+                    "type": "number"
+                },
+                "outer_back_length": {
+                    "title": "outer_back_length",
+                    "type": "number"
+                },
+                "taper_length": {
+                    "title": "taper_length",
+                    "type": "number"
+                },
+                "dielectric_cutout_in_port_width": {
+                    "title": "dielectric_cutout_in_port_width",
+                    "type": "number"
+                },
+                "dielectric_cutout_in_port_length": {
+                    "title": "dielectric_cutout_in_port_length",
+                    "type": "number"
+                }
+            },
+            "required": []
+        }
+    }
+}

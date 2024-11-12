@@ -1,7 +1,8 @@
+#########
 Reference
-=========
+#########
 
 .. toctree::
-    :glob:
+    :maxdepth: 1
 
-    maskpy*
+    SoukMaskBuilder

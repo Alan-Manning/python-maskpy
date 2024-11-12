@@ -1,0 +1,139 @@
+top_left_text: "$filename"
+top_right_text: "Amber_Nb_feed_Nb_ground_al_res_varying_linewidth"
+bottom_left_text: "Amber_Nb_feed_Nb_ground_al_res_varying_linewidth"
+ground_plane_layer: "Nb_Groundplane"
+feedline_center_layer: "Nb_Groundplane"
+resonator_1_settings:
+  resonator_type: "original_al_ind4"
+  f0: 0
+  mux_func_override: "fixed_amber_mux_func"
+  add_inductor_cover: True,
+  resonator_config_override:
+    meander_lw: 1.0
+resonator_2_settings:
+  resonator_type: "original_al_ind4"
+  f0: 1
+  mux_func_override: "fixed_amber_mux_func"
+  add_inductor_cover: True,
+  resonator_config_override:
+    meander_lw: 1.0
+resonator_3_settings:
+  resonator_type: "original_al_ind4"
+  f0: 2
+  mux_func_override: "fixed_amber_mux_func"
+  resonator_config_override:
+    meander_lw: 1.0
+resonator_4_settings:
+  resonator_type: "original_al_ind4"
+  f0: 3
+  mux_func_override: "fixed_amber_mux_func"
+  resonator_config_override:
+    meander_lw: 2.0
+resonator_5_settings:
+  resonator_type: "original_al_ind4"
+  f0: 4
+  mux_func_override: "fixed_amber_mux_func"
+  resonator_config_override:
+    meander_lw: 2.0
+resonator_6_settings:
+  resonator_type: "original_al_ind4"
+  f0: 5
+  mux_func_override: "fixed_amber_mux_func"
+  resonator_config_override:
+    meander_lw: 2.0
+resonator_7_settings:
+  resonator_type: "original_al_ind4"
+  f0: 6
+  IDC_and_frame_material: "Nb_Antenna"
+  meander_material: "Nb_Antenna"
+  mux_func_override: "fixed_amber_mux_func"
+  resonator_config_override:
+    meander_lw: 3.0
+resonator_8_settings:
+  resonator_type: "original_al_ind4"
+  f0: 7
+  IDC_and_frame_material: "Nb_Antenna"
+  meander_material: "Nb_Antenna"
+  mux_func_override: "fixed_amber_mux_func"
+  resonator_config_override:
+    meander_lw: 3.0
+resonator_9_settings:
+  resonator_type: "original_al_ind4"
+  f0: 8
+  IDC_and_frame_material: "Nb_Antenna"
+  meander_material: "Nb_Antenna"
+  mux_func_override: "fixed_amber_mux_func"
+  resonator_config_override:
+    meander_lw: 3.0
+resonator_10_settings:
+  resonator_type: "original_al_ind4"
+  f0: 9
+  IDC_and_frame_material: "Nb_Antenna"
+  meander_material: "Nb_Antenna"
+  mux_func_override: "fixed_amber_mux_func"
+  resonator_config_override:
+    meander_lw: 4.0
+resonator_11_settings:
+  resonator_type: "original_al_ind4"
+  f0: 10
+  IDC_and_frame_material: "Nb_Antenna"
+  meander_material: "Nb_Antenna"
+  mux_func_override: "fixed_amber_mux_func"
+  resonator_config_override:
+    meander_lw: 4.0
+resonator_12_settings:
+  resonator_type: "original_al_ind4"
+  f0: 11
+  IDC_and_frame_material: "Nb_Antenna"
+  meander_material: "Nb_Antenna"
+  mux_func_override: "fixed_amber_mux_func"
+  resonator_config_override:
+    meander_lw: 4.0
+resonator_13_settings:
+  resonator_type: "original_al_ind4"
+  f0: 12
+  IDC_and_frame_material: "Nb_Groundplane"
+  meander_material: "Nb_Groundplane"
+  mux_func_override: "fixed_amber_mux_func"
+  resonator_config_override:
+    meander_lw: 5.0
+resonator_14_settings:
+  resonator_type: "original_al_ind4"
+  f0: 13
+  IDC_and_frame_material: "Nb_Groundplane"
+  meander_material: "Nb_Groundplane"
+  mux_func_override: "fixed_amber_mux_func"
+  resonator_config_override:
+    meander_lw: 5.0
+resonator_15_settings:
+  resonator_type: "original_al_ind4"
+  f0: 14
+  IDC_and_frame_material: "Nb_Groundplane"
+  meander_material: "Nb_Groundplane"
+  mux_func_override: "fixed_amber_mux_func"
+  resonator_config_override:
+    meander_lw: 5.0
+resonator_16_settings:
+  resonator_type: "original_al_ind4"
+  f0: 15
+  IDC_and_frame_material: "Nb_Groundplane"
+  meander_material: "Nb_Groundplane"
+  mux_func_override: "fixed_amber_mux_func"
+  resonator_config_override:
+    meander_lw: 6.0
+resonator_17_settings:
+  resonator_type: "original_al_ind4"
+  f0: 16
+  IDC_and_frame_material: "Nb_Groundplane"
+  meander_material: "Nb_Groundplane"
+  mux_func_override: "fixed_amber_mux_func"
+  resonator_config_override:
+    meander_lw: 6.0
+resonator_18_settings:
+  resonator_type: "original_al_ind4"
+  f0: 17
+  IDC_and_frame_material: "Nb_Groundplane"
+  meander_material: "Nb_Groundplane"
+  mux_func_override: "fixed_amber_mux_func"
+  resonator_config_override:
+    meander_lw: 6.0

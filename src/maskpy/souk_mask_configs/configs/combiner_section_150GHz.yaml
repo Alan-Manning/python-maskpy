@@ -1,0 +1,82 @@
+first_linewidth: 5
+distance_from_outer_ring: 50
+first_section_height: 560
+first_section_width: 155
+#
+# first_section_back_height: 103
+first_section_back_height: 47.5
+first_section_back_height: 150.5
+#
+# second_section_linewidth: 4.5
+# second_section_top_width1: 24.75
+# second_section_top_height1: 16.5
+# second_section_top_width2: 19.5
+# second_section_top_height2: 16.5
+# second_section_top_width3: 28.5
+# second_section_top_height3: 16.5
+# second_section_top_width4: 19.5
+# second_section_top_height4: 11
+# second_section_top_width5: 23.75
+#
+second_section_linewidth: 4
+second_section_top_width1: 24.5
+second_section_top_height1: 29
+second_section_top_width2: 29
+second_section_top_height2: 29
+second_section_top_width3: 27
+second_section_top_height3: 0
+second_section_top_width4: 0
+second_section_top_height4: 0
+second_section_top_width5: 0
+#
+# second_section_bot_width1: 24.75
+# second_section_bot_height1: 15.5
+# second_section_bot_width2: 19.5
+# second_section_bot_height2: 15.5
+# second_section_bot_width3: 28.5
+# second_section_bot_height3: 15.5
+# second_section_bot_width4: 19.5
+# second_section_bot_height4: 15.5
+# second_section_bot_width5: 23.75
+#
+second_section_bot_width1: 24.5
+second_section_bot_height1: 29
+second_section_bot_width2: 29
+second_section_bot_height2: 29
+second_section_bot_width3: 27
+second_section_bot_height3: 0
+second_section_bot_width4: 0
+second_section_bot_height4: 0
+second_section_bot_width5: 0
+#
+start_of_second_section_vertical_linewidth: 3.5
+end_of_second_section_vertical_linewidth: 6
+#
+third_section_linewidth: 3
+third_section_width1: 26.5
+third_section_height1: 28
+third_section_width2: 28
+third_section_height2: 28
+third_section_width3: 28
+#
+meander_height: 525
+meander_linewidth: 5
+meander_initial_gap: 10
+no_of_full_straights: 10
+meander_final_gap: 20
+meander_gap_spacing: 10
+meander_to_frame_box_size: 10
+meander_last_fork_top_box_size: 11
+meander_last_fork_via_box_size_x: 13
+meander_last_fork_via_box_size_y: 11
+meander_last_fork_via_box_y_offset: 1
+meander_conect_linewidth: 5
+meander_conect_bot_width: 30
+meander_conect_right_height: 265
+meander_conect_final_width: 7.5
+meander_last_fork_wdith: 5
+meander_last_fork_height: 168
+meander_last_fork_linewdith: 2.5
+meander_last_fork_start_height: 95
+conection_to_kid_path_linewidth: 5
+conection_to_kid_path_start_piece_length: 10

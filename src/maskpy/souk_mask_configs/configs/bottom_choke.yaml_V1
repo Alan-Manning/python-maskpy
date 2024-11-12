@@ -1,0 +1,8 @@
+wave_guide_hole_radius: 1200
+pad_radius: 50
+pad_x_offset_from_center: 1200
+pad_y_offset_from_center: 1950
+IDC_cutout_offset_top: 100
+IDC_cutout_offset_bot: 100
+IDC_cutout_offset_left: 100
+IDC_cutout_offset_right: 100

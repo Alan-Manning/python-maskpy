@@ -1,0 +1,9 @@
+distance_from_center: 320
+base_width: 390
+top_conect_width: 2
+straight_height: 600
+taper_height: 280
+backside_check_circle_radius: 1900
+antenna_rotation: -22.5
+sin_dep_cutout_circle_radius: 1900
+grnd_cutout_circle_radius: 1205

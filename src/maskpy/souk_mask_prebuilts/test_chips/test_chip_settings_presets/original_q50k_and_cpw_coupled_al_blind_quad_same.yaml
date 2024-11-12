@@ -1,0 +1,75 @@
+---
+# yaml-language-server: $schema=schema.json
+chip_id: 0
+top_right_text: original q50k and cpw coupled al blind quad same
+top_left_text: $filename
+bottom_left_text: original q50k and cpw coupled al blind quad same
+add_ports: true
+add_groundplane_under_test_chip: true
+add_SiN_dep_under_test_chip: false
+add_SiN_membrane_under_test_chip: true
+add_SiO_under_test_chip: true
+quad_0_settings:
+  resonator_type: original_q50k
+  add_antenna: false
+  text_under_quad: Quad_0 Covered
+  couple_KID_to_ANT: false
+  add_filter_bank: false
+  add_top_choke_features: true
+  add_bot_choke_features: true
+  meander_materials: [Al, Al, Al, Al]
+  IDC_and_frame_materials: [Al, Al, Al, Al]
+  add_grnd_cutout: [false, false, false, false]
+  add_grnd_cutout_over_inductor: [false, false, false, false]
+  add_SiN_dep_dielectric_cutout: [false, false, false, false]
+  add_SiN_dep_dielectric_cutout_over_inductor:
+    - false
+    - false
+    - false
+    - false
+quad_1_settings:
+  resonator_type: original_q50k
+  add_antenna: false
+  text_under_quad: Quad_1 SiN_Only
+  couple_KID_to_ANT: false
+  add_filter_bank: false
+  add_top_choke_features: true
+  add_bot_choke_features: true
+  meander_materials: [Al, Al, Al, Al]
+  IDC_and_frame_materials: [Al, Al, Al, Al]
+  add_grnd_cutout: [true, true, true, true]
+  add_grnd_cutout_over_inductor: [true, true, true, true]
+  add_SiN_dep_dielectric_cutout: [false, false, false, false]
+  add_SiN_dep_dielectric_cutout_over_inductor:
+    - false
+    - false
+    - false
+    - false
+quad_2_settings:
+  resonator_type: original_q50k
+  add_antenna: false
+  text_under_quad: Quad_2 bare
+  couple_KID_to_ANT: false
+  add_filter_bank: false
+  add_top_choke_features: true
+  add_bot_choke_features: true
+  meander_materials: [Al, Al, Al, Al]
+  IDC_and_frame_materials: [Al, Al, Al, Al]
+  add_grnd_cutout: [true, true, true, true]
+  add_grnd_cutout_over_inductor: [true, true, true, true]
+  add_SiN_dep_dielectric_cutout: [true, true, true, true]
+  add_SiN_dep_dielectric_cutout_over_inductor:
+    - true
+    - true
+    - true
+    - true
+quad_3_settings:
+  resonator_type: cpw_coupled_v1
+  add_antenna: false
+  text_under_quad: Quad_3 CPW_COUPLED
+  couple_KID_to_ANT: false
+  add_filter_bank: false
+  add_top_choke_features: true
+  add_bot_choke_features: true
+  meander_materials: [Al, Al, Al, Al]
+  IDC_and_frame_materials: [Al, Al, Al, Al]

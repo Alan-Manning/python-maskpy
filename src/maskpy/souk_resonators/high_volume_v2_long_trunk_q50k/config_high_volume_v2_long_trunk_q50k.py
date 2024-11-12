@@ -1,5 +1,5 @@
-def get_resonator_config() -> dict:
-    """Get the config for the HIGH_VOLUME_V2B_Q20K resonator.
+def get_default_resonator_config() -> dict:
+    """Get the default config for the HIGH_VOLUME_V2B_Q20K resonator.
 
     Returns
     -------
@@ -37,7 +37,7 @@ def get_resonator_config() -> dict:
         "right_frame_meander_height_2": 12,
         "meander_step_back_from_frame": 133,
         "ant_pad_box_width": 5,
-        "ant_pad_box_height": 10,
+        "ant_pad_box_height": 13,
         "frame_bot_lw": 8,
         "frame_bot_left_offset": 996,
         "frame_bot_right_offset": 996,

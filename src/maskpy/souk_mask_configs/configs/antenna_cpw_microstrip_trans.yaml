@@ -1,0 +1,14 @@
+CPW_tans_len1: 108
+CPW_tans_len2: 70
+CPW_tans_len3: 36
+CPW_tans_len4: 17
+CPW_tans_len5: 4
+gap1: 4
+gap2: 16
+gap3: 39
+gap4: 76
+gap5: 121
+microstrip_lw: 5
+CPW_width: 11
+extend_out_distance: 100
+flex_path_bend_radius: 80

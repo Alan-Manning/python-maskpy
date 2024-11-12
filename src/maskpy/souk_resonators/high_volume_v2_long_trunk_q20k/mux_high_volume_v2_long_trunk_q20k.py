@@ -1,5 +1,7 @@
 import numpy as np
 
+from ...logging import TextColor, pretty_print
+
 
 def get_IDCLs_and_CCL_from_f0(
     f0: float,
@@ -33,7 +35,11 @@ def get_IDCLs_and_CCL_from_f0(
         This is the length of the coupling capacitor in um.
     """
     from ..original_q20k.mux_original_q20k import get_IDCLs_and_CCL_from_f0 as copy_of_mux_original_q20k
+    from .utils_high_volume_v2_long_trunk_q20k import _this_resonator_type
 
-    print(f"\033[93mWarning: using mux_original_q20k\033[0m")
+    pretty_print(
+        f"Warning: SoukResonatorType.{_this_resonator_type().name} has no mux func.\n    using mux_original_q20k", color=TextColor.WARNING
+    )
+
     return copy_of_mux_original_q20k(f0, rounding_precision=rounding_precision)
     raise NotImplementedError("Not Done Yet.")

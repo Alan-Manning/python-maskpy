@@ -1,5 +1,5 @@
-def get_resonator_config() -> dict:
-    """Get the config for the ORIGINAL_Q50K resonator.
+def get_default_resonator_config() -> dict:
+    """Get the default config for the ORIGINAL_Q50K resonator.
 
     This is the config used in the muxing for the Q50k design. This means only
     this config is guaranteed to generate Q50k pixels reliably.
@@ -26,7 +26,7 @@ def get_resonator_config() -> dict:
         "meander_right_width_2": 565,
         "meander_step_back_from_frame": 0,  ## Added
         "ant_pad_box_width": 5,
-        "ant_pad_box_height": 10,
+        "ant_pad_box_height": 13,
         "frame_bot_lw": 8,
         "frame_bot_left_width": 996,
         "frame_bot_right_width": 996,
@@ -58,6 +58,7 @@ def get_resonator_config() -> dict:
         "text_size": 90,
         "text_x_offset": 800,
         "text_y_offset": 900,
+        "text_underline_height": 3,
         "cutout_bot_offset": 15,
         "cutout_left_offset": 50,
         "cutout_right_offset": 50,

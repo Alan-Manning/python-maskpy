@@ -1,9 +1,12 @@
-from typing import Callable, Union
+from typing import Callable
 
 import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 
+from .logging import TextColor, styled_text
 from .souk_resonators import SoukResonatorType
+from .souk_resonators.cpw_coupled_v1 import mux_cpw_coupled_v1
 from .souk_resonators.high_volume_v1_long_trunk_q20k import mux_high_volume_v1_long_trunk_q20k
 from .souk_resonators.high_volume_v1_long_trunk_q50k import mux_high_volume_v1_long_trunk_q50k
 from .souk_resonators.high_volume_v1_q20k import mux_high_volume_v1_q20k
@@ -20,11 +23,98 @@ from .souk_resonators.original_q20k import mux_original_q20k
 from .souk_resonators.original_q50k import mux_original_q50k
 
 
+def get_souk_hex_pack_ID_and_freq_array(
+    number_of_horn_blocks: int,
+    resonator_type: SoukResonatorType,
+    min_freq: float = 2000000000.0,
+    max_freq: float = 4000000000.0,
+) -> NDArray:
+    """Get the mapped ID array and the mapped frequency array for a hex pack
+    mask. That is return the mapped IDs and freqs for a series of resonators
+    around horn blocks in an souk hex pack. These are 1d arrays which will go
+    from TopLeft, TopRight, BotLeft, BotRight in the first horn block. Then it
+    will follow the same TR, TL, BR, BL for the second horn block. This is
+    better seen by example.
+    If we need 4 horn blocks (i.e. 16 resonators). The frequencies for this
+    will be a linspace between 2->4GHz but that needs to be mapped. This
+    function mapps them like so:
+    >>> 0    4         1    5         2    6         3    7
+    >>>    H              H              H              H
+    >>> 8    12        9    13        10   14        11   15
+
+    where H represents the middle of the horn.
+
+    >>> mapped_IDs = [0,4,8,12, 1,5,9,13, 2,6,10,14, 3,7,11,15]
+    >>>               --------  --------  ---------  ---------
+    >>>               horn 1    horn 2    horn 3     horn 4
+    mapped_freqs will be in the same mapping as the IDs where smallest ID is
+    lowest freq and vice versa.
+
+    Adding more horns below to clarify what is happeing. This time with 5 horns
+    and thus 20 resonators.
+    >>> 0    5         1    6         2    7         3    8         4    9
+    >>>    H              H              H              H              H
+    >>> 10   15        11   16        12   17        13   18        14   19
+
+    >>> mapped_IDs = [0,5,10,15, 1,6,11,16, 2,7,12,17, 3,8,13,18, 4,9,14,19]
+    >>>               ---------  ---------  ---------  ---------  ---------
+    >>>               horn 1     horn 2     horn 3     horn 4     horn 5
+
+    Parameters
+    ----------
+    number_of_resonators: int
+        The number of horn blocks with sets of 4 resonators around them on the
+        mask.
+
+    resonator_type : ResonatorType
+        The type of resonator. Only accepts members of Enum ResonatorType.
+
+    KwArgs
+    ------
+    min_freq: float = 2000000000.0
+        The frequency for the lowest resonator in the mux.
+
+    max_freq: float = 4000000000.0
+        The frequency for the highest resonator in the mux.
+
+    Returns
+    -------
+    mapped_IDs, mapped_freqs: tuple[NDArray, NDArray]
+        The mapped IDs and freqs as described above.
+    """
+    no_res = number_of_horn_blocks * 4
+    mapped_IDs = np.zeros(no_res, dtype=int)
+
+    for i in range(number_of_horn_blocks):
+        mapped_IDs[4 * i : 4 * (i + 1)] = np.array(
+            [
+                i,
+                i + (no_res / 4),
+                i + (no_res / 2),
+                i + (3 * no_res / 4),
+            ]
+        )
+
+    mapped_freqs = get_evenly_spaced_freq_array(
+        len(mapped_IDs),
+        resonator_type,
+        order=mapped_IDs,
+        min_freq=min_freq,
+        max_freq=max_freq,
+    )
+
+    return mapped_IDs, mapped_freqs
+
+
 def get_mux_func_for_resonator_type(resonator_type: SoukResonatorType) -> Callable:
     """Get the muxing function callable that returns the IDCLs and CCL given a
     resonant frequency in Hz."""
     if not isinstance(resonator_type, SoukResonatorType):
-        raise TypeError(f"\033[31mresonator_type should be of type SoukResonatorType. Current type is: {type(resonator_type)}\033[0m")
+        raise TypeError(
+            styled_text(
+                f"resonator_type should be of type SoukResonatorType. Current type is: {type(resonator_type)}", color=TextColor.ERROR
+            )
+        )
 
     match resonator_type:
         case SoukResonatorType.ORIGINAL_Q10K:
@@ -60,13 +150,17 @@ def get_mux_func_for_resonator_type(resonator_type: SoukResonatorType) -> Callab
             return mux_high_volume_v2_long_trunk_q20k.get_IDCLs_and_CCL_from_f0
         case SoukResonatorType.HIGH_VOLUME_V2_LONG_TRUNK_Q50K:
             return mux_high_volume_v2_long_trunk_q50k.get_IDCLs_and_CCL_from_f0
+
+        case SoukResonatorType.CPW_COUPLED_V1:
+            return mux_cpw_coupled_v1.get_IDCLs_and_CCL_from_f0
+
         case _:
             raise (ValueError(f"ResonatorType does not have an associated muxing function."))
 
 
 def get_evenly_spaced_freq_array(
     number_of_resonators: int,
-    resonator_type: SoukResonatorType,
+    resonator_type: SoukResonatorType | None,
     min_freq: float = 2000000000.0,
     max_freq: float = 4000000000.0,
     rounding_precision: int | None = 2,
@@ -217,7 +311,7 @@ def get_resonator_IDCLs_and_CCL_from_f0(
     f0 : float
         The desired frequency (**in Hz**) for the KID.
 
-    resonator_type : ResonatorType
+    resonator_type : SoukResonatorType
         The type of resonator. Only accepts members of Enum ResonatorType.
 
     KwArgs

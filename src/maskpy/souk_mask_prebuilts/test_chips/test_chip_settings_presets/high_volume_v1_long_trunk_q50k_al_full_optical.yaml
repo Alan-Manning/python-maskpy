@@ -1,0 +1,75 @@
+---
+# yaml-language-server: $schema=schema.json
+chip_id: 0
+top_right_text: "high_volume_v1_long_trunk_q50k Al full optical"
+top_left_text: "$filename"
+bottom_left_text: "high_volume_v1_long_trunk_q50k Al full optical"
+add_ports: true
+add_groundplane_under_test_chip: true
+add_SiN_dep_under_test_chip: false
+add_SiN_membrane_under_test_chip: true
+add_SiO_under_test_chip: true
+quad_0_settings:
+  resonator_type: high_volume_v1_long_trunk_q50k
+  general_config_override:
+     horizontal_pitch: 5500
+  add_antenna: true
+  antenna_rotation: -22.5
+  text_under_quad: "Quad_3"
+  couple_KID_to_ANT: false
+  add_filter_bank:
+    with_combiner: true
+    with_crossover: true
+    only_1_pol: false
+  add_top_choke_features: true
+  add_bot_choke_features: true
+  meander_materials: ["Al","Al","Al","Al"]
+  IDC_and_frame_materials: ["Al","Al","Al","Al"]
+quad_1_settings:
+  resonator_type: high_volume_v1_long_trunk_q50k
+  general_config_override:
+     horizontal_pitch: 5500
+  add_antenna: true
+  antenna_rotation: -22.5
+  text_under_quad: "Quad_3"
+  couple_KID_to_ANT: false
+  add_filter_bank:
+    with_combiner: true
+    with_crossover: true
+    only_1_pol: false
+  add_top_choke_features: true
+  add_bot_choke_features: true
+  meander_materials: ["Al","Al","Al","Al"]
+  IDC_and_frame_materials: ["Al","Al","Al","Al"]
+quad_2_settings:
+  resonator_type: high_volume_v1_long_trunk_q50k
+  general_config_override:
+     horizontal_pitch: 5500
+  add_antenna: true
+  antenna_rotation: -22.5
+  text_under_quad: "Quad_3"
+  couple_KID_to_ANT: false
+  add_filter_bank:
+    with_combiner: true
+    with_crossover: true
+    only_1_pol: false
+  add_top_choke_features: true
+  add_bot_choke_features: true
+  meander_materials: ["Al","Al","Al","Al"]
+  IDC_and_frame_materials: ["Al","Al","Al","Al"]
+quad_3_settings:
+  resonator_type: high_volume_v1_long_trunk_q50k
+  general_config_override:
+     horizontal_pitch: 5500
+  add_antenna: true
+  antenna_rotation: -22.5
+  text_under_quad: "Quad_3"
+  couple_KID_to_ANT: false
+  add_filter_bank:
+    with_combiner: true
+    with_crossover: true
+    only_1_pol: false
+  add_top_choke_features: true
+  add_bot_choke_features: true
+  meander_materials: ["Al","Al","Al","Al"]
+  IDC_and_frame_materials: ["Al","Al","Al","Al"]

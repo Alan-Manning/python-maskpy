@@ -1,5 +1,7 @@
 import numpy as np
 
+from ...logging import TextColor, pretty_print
+
 
 def get_IDCLs_and_CCL_from_f0(
     f0: float,
@@ -34,6 +36,10 @@ def get_IDCLs_and_CCL_from_f0(
     """
 
     from ..original_q50k.mux_original_q50k import get_IDCLs_and_CCL_from_f0 as copy_of_mux_original_q50k
+    from .utils_high_volume_v1_q50k import _this_resonator_type
 
-    print(f"\033[93mWarning: using mux_original_q50k\033[0m")
+    pretty_print(
+        f"Warning: SoukResonatorType.{_this_resonator_type().name} has no mux func.\n    using mux_original_q50k", color=TextColor.WARNING
+    )
+
     return copy_of_mux_original_q50k(f0, rounding_precision=rounding_precision)

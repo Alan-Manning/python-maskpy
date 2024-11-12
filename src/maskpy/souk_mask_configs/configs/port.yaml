@@ -1,0 +1,7 @@
+outer_feedline_width: 500
+outer_cutout_around_feedline_width: 1620
+outer_dielectric_under_feedline_width: 1740
+outer_back_length: 1000
+taper_length: 1500
+dielectric_cutout_in_port_width: 500
+dielectric_cutout_in_port_length: 1000

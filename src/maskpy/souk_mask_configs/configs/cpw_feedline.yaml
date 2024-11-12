@@ -1,0 +1,7 @@
+feedline_width: 36
+cutout_around_feedline_width: 68
+dielectric_under_feedline_width: 188
+bend_radius: 200
+extra_straight_length: 200
+bridge_gap: 2750
+bridge_width: 6

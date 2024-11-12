@@ -1,0 +1,13 @@
+sma_square_offset_left: 0
+sma_square_offset_right: 7000
+sma_square_offset_top: 0
+sma_square_offset_bot: 0
+sma_circle_radius: 2160
+sma_square_width: 5000
+sma_square_height: 5000
+taper_length: 3000
+central_linewidth: 500
+gap: 500
+dielectric_overlap_distance: 300
+bend_offset_from_end: 200
+extra_bend_center: 50

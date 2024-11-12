@@ -25,6 +25,8 @@ class SoukResonatorType(StrEnum):
 
     HIGH_VOLUME_V2_LONG_TRUNK_Q20K
     HIGH_VOLUME_V2_LONG_TRUNK_Q50K
+
+    CPW_COUPLED_V1
     """
 
     ORIGINAL_Q10K = "original_q10k"
@@ -47,9 +49,11 @@ class SoukResonatorType(StrEnum):
     HIGH_VOLUME_V2_LONG_TRUNK_Q20K = "high_volume_v2_long_trunk_q20k"
     HIGH_VOLUME_V2_LONG_TRUNK_Q50K = "high_volume_v2_long_trunk_q50k"
 
+    CPW_COUPLED_V1 = "cpw_coupled_v1"
+
     @classmethod
     def _missing_(cls, value):
-        value = value.upper()
+        value = value.lower()
         for member in cls:
             if member == value:
                 return member

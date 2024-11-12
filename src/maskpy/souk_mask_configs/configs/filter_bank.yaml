@@ -1,0 +1,24 @@
+inner_ring_radius: 1960
+inner_ring_line_width: 5
+outer_ring_radius: 2082.5
+outer_ring_line_width: 5
+ring_overlap_distance_from_center: 2020
+inner_ring_overlap_gap: 325
+outer_ring_overlap_gap: 325
+outer_ring_conector_gap: 20
+inner_straight_extend_distance: 30
+inner_bend_radius: 25
+outer_straight_extend_distance: 30
+outer_bend_radius: 25
+
+Hugh_filter_thin_length1: 40
+Hugh_filter_thin_length2: 85
+Hugh_filter_thick_length1: 38
+Hugh_filter_thick_length2: 46
+Hugh_filter_thin_width: 2
+Hugh_filter_thick_width: 20
+
+ring_overlap_0_rot: -45
+ring_overlap_1_rot: 45
+ring_overlap_2_rot: 45
+ring_overlap_3_rot: -45
