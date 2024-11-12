@@ -12,7 +12,7 @@ def read(*names, **kwargs):
 
 setup(
     name="maskpy",
-    version="0.0.0",
+    version="1.0.0",
     license="LGPL-3.0-or-later",
     description="package for creating gds maks in python",
     long_description="{}\n{}".format(
