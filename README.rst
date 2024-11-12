@@ -43,9 +43,9 @@ Overview
     :alt: Supported implementations
     :target: https://pypi.org/project/maskpy
 
-.. |commits-since| image:: https://img.shields.io/github/commits-since/Alan-Manning/python-maskpy/v1.0.0.svg
+.. |commits-since| image:: https://img.shields.io/github/commits-since/Alan-Manning/python-maskpy/v1.0.1.svg
     :alt: Commits since latest release
-    :target: https://github.com/Alan-Manning/python-maskpy/compare/v1.0.0...main
+    :target: https://github.com/Alan-Manning/python-maskpy/compare/v1.0.1...main
 
 
 
